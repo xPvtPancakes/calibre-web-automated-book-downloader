@@ -1,0 +1,436 @@
+// Main application JavaScript
+document.addEventListener('DOMContentLoaded', () => {
+    // DOM Elements
+    const elements = {
+        searchInput: document.getElementById('search-input'),
+        searchButton: document.getElementById('search-button'),
+        resultsSection: document.getElementById('results-section'),
+        resultsHeading: document.getElementById('results-heading'),
+        resultsTable: document.getElementById('results-table'),
+        resultsTableBody: document.querySelector('#results-table tbody'),
+        searchLoading: document.getElementById('search-loading'),
+        statusLoading: document.getElementById('status-loading'),
+        statusTable: document.getElementById('status-table'),
+        statusTableBody: document.querySelector('#status-table tbody'),
+        modalOverlay: document.getElementById('modal-overlay'),
+        detailsContainer: document.getElementById('details-container')
+    };
+
+    // State
+    let currentBookDetails = null;
+    const STATE = {
+        isSearching: false,
+        isLoadingDetails: false
+    };
+
+    // Constants
+    const REFRESH_INTERVAL = 60000; // 60 seconds
+    const API_ENDPOINTS = {
+        search: '/request/api/search',
+        info: '/request/api/info',
+        download: '/request/api/download',
+        status: '/request/api/status'
+    };
+
+    // Utility Functions
+    const utils = {
+        debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        },
+
+        showLoading(element) {
+            element.style.display = 'block';
+        },
+
+        hideLoading(element) {
+            element.style.display = 'none';
+        },
+
+        async fetchJson(url, options = {}) {
+            try {
+                const response = await fetch(url, options);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Fetch error:', error);
+                throw error;
+            }
+        },
+
+        createElement(tag, attributes = {}, children = []) {
+            const element = document.createElement(tag);
+            Object.entries(attributes).forEach(([key, value]) => {
+                element[key] = value;
+            });
+            children.forEach(child => {
+                if (typeof child === 'string') {
+                    element.appendChild(document.createTextNode(child));
+                } else {
+                    element.appendChild(child);
+                }
+            });
+            return element;
+        }
+    };
+
+    // Search Functions
+    const search = {
+        async performSearch(query) {
+            if (STATE.isSearching) return;
+            
+            try {
+                STATE.isSearching = true;
+                elements.resultsSection.classList.remove('collapsed');
+                utils.showLoading(elements.searchLoading);
+
+                const data = await utils.fetchJson(
+                    `${API_ENDPOINTS.search}?query=${encodeURIComponent(query)}`
+                );
+                
+                this.displayResults(data);
+            } catch (error) {
+                this.handleSearchError(error);
+            } finally {
+                STATE.isSearching = false;
+                utils.hideLoading(elements.searchLoading);
+            }
+        },
+
+        displayResults(books) {
+            elements.resultsTableBody.innerHTML = '';
+            
+            if (!books.length) {
+                this.displayNoResults();
+                return;
+            }
+
+            books.forEach((book, index) => {
+                const row = this.createBookRow(book, index);
+                elements.resultsTableBody.appendChild(row);
+            });
+        },
+
+        displayNoResults() {
+            const row = utils.createElement('tr', {}, [
+                utils.createElement('td', {
+                    colSpan: '10',
+                    textContent: 'No results found.'
+                })
+            ]);
+            elements.resultsTableBody.appendChild(row);
+        },
+
+        createBookRow(book, index) {
+            return utils.createElement('tr', {}, [
+                utils.createElement('td', { textContent: index + 1 }),
+                this.createPreviewCell(book.preview),
+                utils.createElement('td', { textContent: book.title || 'N/A' }),
+                utils.createElement('td', { textContent: book.author || 'N/A' }),
+                utils.createElement('td', { textContent: book.publisher || 'N/A' }),
+                utils.createElement('td', { textContent: book.year || 'N/A' }),
+                utils.createElement('td', { textContent: book.language || 'N/A' }),
+                utils.createElement('td', { textContent: book.format || 'N/A' }),
+                utils.createElement('td', { textContent: book.size || 'N/A' }),
+                this.createActionCell(book)
+            ]);
+        },
+
+        createPreviewCell(previewUrl) {
+            if (!previewUrl) {
+                return utils.createElement('td', { textContent: 'N/A' });
+            }
+
+            const img = utils.createElement('img', {
+                src: previewUrl,
+                alt: 'Book Preview',
+                style: 'max-width: 60px;'
+            });
+
+            return utils.createElement('td', {}, [img]);
+        },
+
+        createActionCell(book) {
+            const buttonDetails = utils.createElement('button', {
+                className: 'details-button',
+                onclick: () => bookDetails.show(book.id)
+            }, [utils.createElement('span', { textContent: 'Details' })]);
+
+            const downloadButton = utils.createElement('button', {
+                className: 'download-button',
+                onclick: () => bookDetails.downloadBook(book)
+            }, [utils.createElement('span', { textContent: 'Download' })]);
+
+            return utils.createElement('td', {}, [buttonDetails, downloadButton]);
+        },
+
+        handleSearchError(error) {
+            console.error('Search error:', error);
+            elements.resultsTableBody.innerHTML = '';
+            const errorRow = utils.createElement('tr', {}, [
+                utils.createElement('td', {
+                    colSpan: '10',
+                    textContent: 'An error occurred while searching. Please try again.'
+                })
+            ]);
+            elements.resultsTableBody.appendChild(errorRow);
+        }
+    };
+
+    // Book Details Functions
+    const bookDetails = {
+        async show(bookId) {
+            if (STATE.isLoadingDetails) return;
+
+            try {
+                STATE.isLoadingDetails = true;
+                modal.open();
+                elements.detailsContainer.innerHTML = '<p>Loading details...</p>';
+
+                const book = await utils.fetchJson(
+                    `${API_ENDPOINTS.info}?id=${encodeURIComponent(bookId)}`
+                );
+                
+                currentBookDetails = book;
+                this.displayDetails(book);
+            } catch (error) {
+                this.handleDetailsError(error);
+            } finally {
+                STATE.isLoadingDetails = false;
+            }
+        },
+
+        displayDetails(book) {
+            elements.detailsContainer.innerHTML = this.generateDetailsHTML(book);
+            
+            // Add event listeners
+            document.getElementById('download-button')
+                .addEventListener('click', () => this.downloadBook(book));
+            document.getElementById('close-details')
+                .addEventListener('click', modal.close);
+        },
+
+        generateDetailsHTML(book) {
+            return `
+                <div class="details-header">
+                    <img src="${book.preview || ''}" alt="Book Preview">
+                    <div class="details-info">
+                        <h3>${book.title || 'No title available'}</h3>
+                        <p><strong>Author:</strong> ${book.author || 'N/A'}</p>
+                        <p><strong>Publisher:</strong> ${book.publisher || 'N/A'}</p>
+                        <p><strong>Year:</strong> ${book.year || 'N/A'}</p>
+                        <p><strong>Language:</strong> ${book.language || 'N/A'}</p>
+                        <p><strong>Format:</strong> ${book.format || 'N/A'}</p>
+                        <p><strong>Size:</strong> ${book.size || 'N/A'}</p>
+                    </div>
+                </div>
+                ${this.generateInfoList(book.info)}
+                <div class="details-actions">
+                    <button id="download-button">Download</button>
+                    <button id="close-details">Close</button>
+                </div>
+            `;
+        },
+
+        generateInfoList(info) {
+            if (!info) return '';
+
+            const listItems = Object.entries(info)
+                .map(([key, values]) => `
+                    <li><strong>${key}:</strong> ${values.join(', ')}</li>
+                `)
+                .join('');
+
+            return `<ul class="details-info-list">${listItems}</ul>`;
+        },
+
+        async downloadBook(book) {
+            if (!book) return;
+
+            try {
+                utils.showLoading(elements.searchLoading);
+                await utils.fetchJson(
+                    `${API_ENDPOINTS.download}?id=${encodeURIComponent(book.id)}`
+                );
+                
+                modal.close();
+                elements.resultsSection.classList.add('collapsed');
+                status.fetch();
+            } catch (error) {
+                console.error('Download error:', error);
+            } finally {
+                utils.hideLoading(elements.searchLoading);
+            }
+        },
+
+        handleDetailsError(error) {
+            console.error('Details error:', error);
+            elements.detailsContainer.innerHTML = `
+                <p>Error loading details. Please try again.</p>
+                <div class="details-actions">
+                    <button id="close-details" onclick="modal.close()">Close</button>
+                </div>
+            `;
+            document.getElementById('close-details')
+                .addEventListener('click', modal.close);
+        }
+    };
+
+    // Status Functions
+    const status = {
+        async fetch() {
+            try {
+                utils.showLoading(elements.statusLoading);
+                const data = await utils.fetchJson(API_ENDPOINTS.status);
+                this.display(data);
+            } catch (error) {
+                this.handleError(error);
+            } finally {
+                utils.hideLoading(elements.statusLoading);
+            }
+        },
+
+        display(data) {
+            elements.statusTableBody.innerHTML = '';
+            
+            // Handle each status type
+            Object.entries(data).forEach(([status, booksInStatus]) => {
+                // If the status section has books
+                if (Object.keys(booksInStatus).length > 0) {
+                    // For each book in this status
+                    Object.entries(booksInStatus).forEach(([bookId, bookData]) => {
+                        this.addStatusRow(status, bookData);
+                    });
+                }
+            });
+        },
+
+        addStatusRow(status, book) {
+            if (!book.id || !book.title) return;
+
+            const statusCell = utils.createElement('td', {
+                className: `status-${status.toLowerCase()}`,
+                textContent: status
+            });
+
+            let titleElement;
+            if (status.toLowerCase().includes('available')) {
+                titleElement = utils.createElement('a', {
+                    href: `/request/api/localdownload?id=${book.id}`,
+                    target: '_blank',
+                    textContent: book.title || 'N/A'
+                });
+            }
+            else {
+                titleElement = utils.createElement('td', { textContent: book.title || 'N/A' })
+            }
+
+            const row = utils.createElement('tr', {}, [
+                statusCell,
+                utils.createElement('td', { textContent: book.id }),
+                titleElement,
+                this.createPreviewCell(book.preview)
+            ]);
+
+            elements.statusTableBody.appendChild(row);
+        },
+
+        createPreviewCell(previewUrl) {
+            const cell = utils.createElement('td');
+            
+            if (previewUrl) {
+                const img = utils.createElement('img', {
+                    src: previewUrl,
+                    alt: 'Book Preview',
+                    style: 'max-width: 60px; height: auto;'
+                });
+                cell.appendChild(img);
+            } else {
+                cell.textContent = 'N/A';
+            }
+            
+            return cell;
+        },
+
+        handleError(error) {
+            console.error('Status error:', error);
+            elements.statusTableBody.innerHTML = '';
+            
+            const errorRow = utils.createElement('tr', {}, [
+                utils.createElement('td', {
+                    colSpan: '4',
+                    className: 'error-message',
+                    textContent: 'Error loading status. Will retry automatically.'
+                })
+            ]);
+            
+            elements.statusTableBody.appendChild(errorRow);
+        }
+    };
+
+    // Modal Functions
+    const modal = {
+        open() {
+            elements.modalOverlay.classList.add('active');
+        },
+
+        close() {
+            elements.modalOverlay.classList.remove('active');
+            currentBookDetails = null;
+        }
+    };
+
+    // Event Listeners
+    function setupEventListeners() {
+        // Search events
+        elements.searchButton.addEventListener('click', () => {
+            const query = elements.searchInput.value.trim();
+            if (query) search.performSearch(query);
+        });
+
+        elements.searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const query = elements.searchInput.value.trim();
+                if (query) search.performSearch(query);
+            }
+        });
+
+        // Results section toggle
+        elements.resultsHeading.addEventListener('click', () => {
+            elements.resultsSection.classList.toggle('collapsed');
+        });
+
+        // Modal close on overlay click
+        elements.modalOverlay.addEventListener('click', (e) => {
+            if (e.target === elements.modalOverlay) {
+                modal.close();
+            }
+        });
+
+        // Keyboard accessibility
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && elements.modalOverlay.classList.contains('active')) {
+                modal.close();
+            }
+        });
+    }
+
+    // Initialize
+    function init() {
+        setupEventListeners();
+        status.fetch();
+        setInterval(() => status.fetch(), REFRESH_INTERVAL);
+    }
+
+    init();
+});
