@@ -1,21 +1,30 @@
 #!/bin/bash
-# set -e
+set -e
 
-mkdir -p /var/log/cwa-book-downloader
-mkdir -p "$INGEST_DIR"
+# Set UID if not set
+if [ -z "$UID" ]; then
+    UID=1000
+fi
 
-# Create group if it doesn't exist
+# Set GID if not set
+if [ -z "$GID" ]; then
+    GID=100
+fi
+
 if ! getent group "$GID" >/dev/null; then
-    groupadd -g "$GID" abc
+    groupadd -g "$GID" appuser
 fi
 
 # Create user if it doesn't exist
 if ! id -u "$UID" >/dev/null 2>&1; then
-    useradd -u "$UID" -g "$GID" -d /app -s /sbin/nologin abc
+    useradd -u "$UID" -g "$GID" -d /app -s /sbin/nologin appuser
 fi
 
-# Adjust ownership of application directories
-chown -R $UID:$GID /app "$INGEST_DIR" /var/log/cwa-book-downloader
+# Get username for the UID (whether we just created it or it existed)
+USERNAME=$(getent passwd "$UID" | cut -d: -f1)
 
-# Switch to the created user and execute the main command
-exec gosu $UID "$@"
+# Ensure proper ownership of application directories
+chown -R "${UID}:${GID}" /app /var/log/cwa-book-downloader /cwa-book-ingest
+
+# Switch to the user (either newly created or existing) and execute the main command
+exec su -s /bin/bash "$USERNAME" -c "python -m app" 

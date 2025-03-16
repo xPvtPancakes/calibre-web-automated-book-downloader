@@ -61,7 +61,7 @@ An intuitive web interface for searching and requesting book downloads, designed
 | `GID`             | Runtime group ID        | `100`              |
 | `ENABLE_LOGGING`  | Enable log file         | `true`             |
 
-If logging is enabld, log folder default location is `var/log/cwa-book-downloader`
+If logging is enabld, log folder default location is `/var/log/cwa-book-downloader`
 
 #### Download Settings
 
@@ -90,10 +90,20 @@ If disabling the cloudflare bypass, you will be using alternative download hosts
 
 | Variable               | Description                   | Default Value           |
 | ---------------------- | ----------------------------- | ----------------------- |
-| `CLOUDFLARE_PROXY_URL` | Cloudflare bypass service URL | `http://localhost:8000` |
 | `PORT`                 | Container external port       | `8084`                  |
+| `HTTP_PROXY`           | HTTP proxy URL                | ``                      |
+| `HTTPS_PROXY`          | HTTPS proxy URL               | ``                      |
 
-`CLOUDFLARE_PROXY_URL` is ignored if `USE_CF_BYPASS` is set to `false`
+For proxy configuration, you can specify URLs in the following format:
+```bash
+# Basic proxy
+HTTP_PROXY=http://proxy.example.com:8080
+HTTPS_PROXY=http://proxy.example.com:8080
+
+# Proxy with authentication
+HTTP_PROXY=http://username:password@proxy.example.com:8080
+HTTPS_PROXY=http://username:password@proxy.example.com:8080
+```
 
 ### Volume Configuration
 
