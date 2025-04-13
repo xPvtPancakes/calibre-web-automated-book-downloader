@@ -34,18 +34,18 @@ def html_get_page(url: str, retry: int = MAX_RETRY, use_bypasser: bool = False) 
         logger.debug(f"html_get_page: {url}, retry: {retry}, use_bypasser: {use_bypasser}")
         if use_bypasser and USE_CF_BYPASS:
             logger.info(f"GET Using Cloudflare Bypasser for: {url}")
-            response = cloudflare_bypasser.get(url)
-            logger.debug(f"Cloudflare Bypasser response: {response}")
-            if response:
-                return str(response.html)
+            response_html = cloudflare_bypasser.get(url)
+            logger.debug(f"Cloudflare Bypasser response length: {len(response_html)}")
+            if response_html.strip() != "":
+                return response_html
             else:
                 raise requests.exceptions.RequestException("Failed to bypass Cloudflare")
-            
-        logger.info(f"GET: {url}")
-        response = requests.get(url, proxies=PROXIES)
-        response.raise_for_status()
-        logger.debug(f"Success getting: {url}")
-        time.sleep(1)
+        else:
+            logger.info(f"GET: {url}")
+            response = requests.get(url, proxies=PROXIES)
+            response.raise_for_status()
+            logger.debug(f"Success getting: {url}")
+            time.sleep(1)
         return str(response.text)
         
     except Exception as e:
@@ -53,14 +53,14 @@ def html_get_page(url: str, retry: int = MAX_RETRY, use_bypasser: bool = False) 
             logger.error_trace(f"Failed to fetch page: {url}, error: {e}")
             return ""
         
-        if response is not None and response.status_code == 404:
+        if use_bypasser and USE_CF_BYPASS:
+            logger.warning(f"Exception while using cloudflare bypass for URL: {url}")
+            logger.warning(f"Exception: {e}")
+            logger.warning(f"Response: {response}")
+        elif response is not None and response.status_code == 404:
             logger.warning(f"404 error for URL: {url}")
             return ""
-
-        if response is not None and response.status_code == 403:
-            if use_bypasser:
-                logger.warning(f"403 error while using cloudflare bypass for URL: {url}")
-                return ""
+        elif response is not None and response.status_code == 403:
             logger.warning(f"403 detected for URL: {url}. Should retry using cloudflare bypass.")
             return html_get_page(url, retry - 1, True)
             

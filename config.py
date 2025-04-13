@@ -18,7 +18,8 @@ with open("data/book-languages.json") as file:
 # Directory settings
 BASE_DIR = Path(__file__).resolve().parent
 logger.info(f"BASE_DIR: {BASE_DIR}")
-env.LOG_DIR.mkdir(exist_ok=True)
+if env.ENABLE_LOGGING:
+    env.LOG_DIR.mkdir(exist_ok=True)
 
 # Create necessary directories
 env.TMP_DIR.mkdir(exist_ok=True)

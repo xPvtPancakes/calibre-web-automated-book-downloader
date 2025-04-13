@@ -57,6 +57,7 @@ An intuitive web interface for searching and requesting book downloads, designed
 | `FLASK_DEBUG`     | Debug mode toggle       | `false`            |
 | `FLASK_HOST`      | Web interface binding   | `0.0.0.0`          |
 | `INGEST_DIR`      | Book download directory | `/cwa-book-ingest` |
+| `TZ`              | Container timezone      | `UTC`              |
 | `UID`             | Runtime user ID         | `1000`             |
 | `GID`             | Runtime group ID        | `100`              |
 | `ENABLE_LOGGING`  | Enable log file         | `true`             |
@@ -64,6 +65,8 @@ An intuitive web interface for searching and requesting book downloads, designed
 
 If logging is enabld, log folder default location is `/var/log/cwa-book-downloader`
 Available log levels: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`. Higher levels show fewer messages.
+
+Note that if using TOR, the TZ will be calculated automatically based on IP.
 
 #### Download Settings
 
@@ -166,12 +169,32 @@ volumes:
 
 Mount should align with your Calibre-Web-Automated ingest folder.
 
+## 🧅 Tor Variant
+
+This application also offers a variant that routes all its traffic through the Tor network. This can be useful for enhanced privacy or bypassing network restrictions.
+
+To use the Tor variant:
+
+1.  Get the Tor-specific docker-compose file:
+    ```bash
+    curl -O https://raw.githubusercontent.com/calibrain/calibre-web-automated-book-downloader/refs/heads/main/docker-compose.tor.yml
+    ```
+2.  Start the service using this file:
+    ```bash
+    docker compose -f docker-compose.tor.yml up -d
+    ```
+
+**Important Considerations for Tor:**
+
+*   **Capabilities:** This variant requires the `NET_ADMIN` and `NET_RAW` Docker capabilities to configure `iptables` for transparent Tor proxying.
+*   **Timezone:** When running in Tor mode, the container will attempt to determine the timezone based on the Tor exit node's IP address and set it automatically. This will override the `TZ` environment variable if it is set.
+*   **Network Settings:** Custom DNS, DoH, and HTTP(S) proxy settings (`CUSTOM_DNS`, `USE_DOH`, `HTTP_PROXY`, `HTTPS_PROXY`) are ignored when using the Tor variant, as all traffic goes through Tor.
+
 ## 🏗️ Architecture
 
-The application consists of two key services:
+The application consists of a single service:
 
 1. **calibre-web-automated-bookdownloader**: Main application providing web interface and download functionality
-2. **cloudflarebypassforscraping**: Support service for handling Cloudflare-protected websites
 
 ## 🏥 Health Monitoring
 
@@ -182,6 +205,11 @@ Built-in health checks monitor:
 - Cloudflare bypass service connection
 
 Checks run every 30 seconds with a 30-second timeout and 3 retries.
+You can enable by adding this to your compose :
+```
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD pyrequests http://localhost:8084/request/api/status || exit 1
+```
 
 ## 📝 Logging
 

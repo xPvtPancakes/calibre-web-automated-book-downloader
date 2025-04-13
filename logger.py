@@ -62,6 +62,9 @@ def setup_logger(name: str, log_file: Path = LOG_FILE) -> CustomLogger:
     # File handler if log file is specified
     try:
         if ENABLE_LOGGING:
+            # Create log directory if it doesn't exist
+            log_dir = log_file.parent
+            log_dir.mkdir(parents=True, exist_ok=True)
             file_handler = RotatingFileHandler(
                 log_file,
                 maxBytes=10485760,  # 10MB
