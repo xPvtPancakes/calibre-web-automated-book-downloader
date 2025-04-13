@@ -1,0 +1,19 @@
+services:
+  calibre-web-automated-book-downloader-tor:
+    image: ghcr.io/calibrain/calibre-web-automated-book-downloader-tor:latest
+    environment:
+      FLASK_PORT: 8084
+      LOG_LEVEL: info
+      BOOK_LANGUAGE: en
+      USE_BOOK_TITLE: true
+      FLASK_DEBUG: false
+      ENABLE_TOR: true
+      TZ: America/New_York
+    ports:
+      - 8084:8084
+    restart: unless-stopped
+    volumes:
+    # This is where the books will be downloaded to, usually it would be 
+    # the same as whatever you gave in "calibre-web-automated"
+      - /tmp/data/calibre-web/ingest:/cwa-book-ingest
+      - /tmp/cwa-book-downloader:/tmp/cwa-book-downloader
