@@ -4,12 +4,13 @@ from pathlib import Path
 def string_to_bool(s: str) -> bool:
     return s.lower() in ["true", "yes", "1", "y"]
 
-LOG_DIR = Path("/var/log/cwa-book-downloader")
+LOG_ROOT = Path(os.getenv("LOG_ROOT", "/var/log/"))
+LOG_DIR = LOG_ROOT / "cwa-book-downloader"
 TMP_DIR = Path(os.getenv("TMP_DIR", "/tmp/cwa-book-downloader"))
 INGEST_DIR = Path(os.getenv("INGEST_DIR", "/cwa-book-ingest"))
 STATUS_TIMEOUT = int(os.getenv("STATUS_TIMEOUT", "3600"))
 USE_BOOK_TITLE = string_to_bool(os.getenv("USE_BOOK_TITLE", "false"))
-MAX_RETRY = int(os.getenv("MAX_RETRY", "3"))
+MAX_RETRY = int(os.getenv("MAX_RETRY", "10"))
 DEFAULT_SLEEP = int(os.getenv("DEFAULT_SLEEP", "5"))
 USE_CF_BYPASS = string_to_bool(os.getenv("USE_CF_BYPASS", "true"))
 HTTP_PROXY = os.getenv("HTTP_PROXY", "").strip()
@@ -23,12 +24,22 @@ _CUSTOM_SCRIPT = os.getenv("CUSTOM_SCRIPT", "").strip()
 FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
 FLASK_PORT = int(os.getenv("FLASK_PORT", "8084"))
 FLASK_DEBUG = string_to_bool(os.getenv("FLASK_DEBUG", "False"))
+DEBUG = FLASK_DEBUG
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 ENABLE_LOGGING = string_to_bool(os.getenv("ENABLE_LOGGING", "true"))
 MAIN_LOOP_SLEEP_TIME = int(os.getenv("MAIN_LOOP_SLEEP_TIME", "5"))
 DOCKERMODE = string_to_bool(os.getenv("DOCKERMODE", "false"))
 _CUSTOM_DNS = os.getenv("CUSTOM_DNS", "").strip()
 USE_DOH = string_to_bool(os.getenv("USE_DOH", "false"))
-
+BYPASS_RELEASE_INACTIVE_MIN = int(os.getenv("BYPASS_RELEASE_INACTIVE_MIN", "5"))
 # Logging settings
 LOG_FILE = LOG_DIR / "cwa-bookd-downloader.log"
+
+USING_TOR = string_to_bool(os.getenv("USING_TOR", "false"))
+# If using Tor, we don't need to set custom DNS, use DOH, or proxy
+if USING_TOR:
+    _CUSTOM_DNS = ""
+    USE_DOH = False
+    HTTP_PROXY = ""
+    HTTPS_PROXY = ""
+    

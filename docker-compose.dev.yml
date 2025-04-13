@@ -1,20 +1,15 @@
-# If you change the FLASK_PORT, do not forget to change it in ports and healthcheck as well.
 services:
-  calibre-web-automated-book-downloader:
-    build :
+  calibre-web-automated-book-downloader-dev:
+    extends:
+      file: ./docker-compose.yml
+      service: calibre-web-automated-book-downloader
+    build:
       context: .
       dockerfile: Dockerfile
+      target: cwa-bd
     environment:
-      FLASK_PORT: 8084
       LOG_LEVEL: debug
-      BOOK_LANGUAGE: en
-      USE_BOOK_TITLE: true
-      CUSTOM_DNS: cloudflare
+      FLASK_DEBUG: true
       USE_DOH: true
-    ports:
-      - 8084:8084
-    restart: unless-stopped
-    volumes:
-    # This is where the books will be downloaded to, usually it would be 
-    # the same as whatever you gave in "calibre-web-automated"
-      - /tmp/data/calibre-web/ingest:/cwa-book-ingest
+      CUSTOM_DNS: cloudflare
+

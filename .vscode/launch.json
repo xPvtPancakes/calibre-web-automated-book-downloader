@@ -2,11 +2,28 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Python Debugger: Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+        "INGEST_DIR": "/tmp/cwa-book-downloader",
+        "TEMP_DIR": "/tmp/cwa-book-downloader",
+        "LOG_LEVEL": "DEBUG",
+        "LOG_ROOT": "/tmp/cwa-book-downloader",
+        "ENABLE_LOGGING": "true",
+        "DOCKERMODE": "false",
+        "FLASK_DEBUG": "true"
+      },
+    },
+    {
       "name": "Docker-compose Dev",
-      "type": "debugpy",          // or "debugpy", Node, etc.
+      "type": "debugpy", // or "debugpy", Node, etc.
       "request": "launch",
       "program": "${workspaceFolder}/app.py",
-      "preLaunchTask": "docker-compose up (dev)",   // Spin up dev containers
+      "preLaunchTask": "docker-compose up (dev)", // Spin up dev containers
       "postDebugTask": "docker-compose down (dev)", // Optional: tear them down
       "env": {
         "INGEST_DIR": "/tmp/cwa-book-downloader"
@@ -17,24 +34,11 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/app.py",
-      "preLaunchTask": "docker-compose up (prod)",   
+      "preLaunchTask": "docker-compose up (prod)",
       "postDebugTask": "docker-compose down (prod)",
       "env": {
         "INGEST_DIR": "/tmp/cwa-book-downloader"
       },
-    },
-    {
-      "type": "debugpy",
-      "request": "launch",
-      "name": "Launch cwa-bd app.py",
-      "program": "${workspaceFolder}/app.py",
-      "env": {
-        "DOCKERMODE": "false",
-        "INGEST_DIR": "/tmp/cwa-book-downloader"
-      },
-      "presentation": {
-        "hidden": true
-      }
     },
     {
       "type": "chrome",

@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Configure timezone
+if [ "$TZ" ]; then
+    ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+fi
+
 # Set UID if not set
 if [ -z "$UID" ]; then
     UID=1000
@@ -34,4 +39,4 @@ change_ownership /var/log/cwa-book-downloader
 change_ownership /cwa-book-ingest
 
 # Switch to the user (either newly created or existing) and execute the main command
-exec su -s /bin/bash "$USERNAME" -c "python -m app" 
+exec sudo -E -u "$USERNAME" python3 -m app 

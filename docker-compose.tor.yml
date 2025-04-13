@@ -1,12 +1,13 @@
 services:
-  calibre-web-automated-book-downloader:
-    image: ghcr.io/calibrain/calibre-web-automated-book-downloader:latest
+  calibre-web-automated-book-downloader-tor:
+    image: ghcr.io/calibrain/calibre-web-automated-book-downloader-tor:latest
     environment:
       FLASK_PORT: 8084
       LOG_LEVEL: info
       BOOK_LANGUAGE: en
       USE_BOOK_TITLE: true
       FLASK_DEBUG: false
+      ENABLE_TOR: true
       TZ: America/New_York
     ports:
       - 8084:8084
