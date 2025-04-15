@@ -1,7 +1,7 @@
 services:
   calibre-web-automated-book-downloader-tor-dev:
     extends:
-      file: ./docker-compose.yml
+      file: ./docker-compose.tor.yml
       service: calibre-web-automated-book-downloader-tor
     build:
       context: .
