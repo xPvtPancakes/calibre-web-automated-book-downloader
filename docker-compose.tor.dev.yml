@@ -7,9 +7,6 @@ services:
       context: .
       dockerfile: Dockerfile
       target: cwa-bd-tor
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
     environment:
       LOG_LEVEL: debug
       FLASK_DEBUG: true
