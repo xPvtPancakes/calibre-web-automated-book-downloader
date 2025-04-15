@@ -12,7 +12,17 @@ class CustomLogger(logging.Logger):
     
     def error_trace(self, msg: Any, *args: Any, **kwargs: Any) -> None:
         """Log an error message with full stack trace."""
+        self.log_resource_usage()
         self.error(msg, *args, exc_info=True, **kwargs)
+    
+    def log_resource_usage(self):
+        import psutil
+        memory = psutil.virtual_memory()
+        available_mb = memory.available / (1024 * 1024)
+        memory_used_mb = memory.used / (1024 * 1024)
+        cpu_percent = psutil.cpu_percent()
+        self.debug(f"Container Memory: Available={available_mb:.2f} MB, Used={memory_used_mb:.2f} MB, CPU: {cpu_percent:.2f}%")
+
 
 def setup_logger(name: str, log_file: Path = LOG_FILE) -> CustomLogger:
     """Set up and configure a logger instance.
@@ -76,3 +86,4 @@ def setup_logger(name: str, log_file: Path = LOG_FILE) -> CustomLogger:
         logger.error_trace(f"Failed to create log file: {e}", exc_info=True)
 
     return logger
+

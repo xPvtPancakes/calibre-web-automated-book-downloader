@@ -8,3 +8,4 @@ pyautogui
 seleniumbase
 gunicorn
 python-xlib
+psutil

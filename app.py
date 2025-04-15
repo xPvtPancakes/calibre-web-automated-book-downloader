@@ -253,6 +253,8 @@ def internal_error(error: Exception) -> Union[Response, Tuple[Response, int]]:
 # Register all routes with /request prefix
 register_dual_routes(app)
 
+logger.log_resource_usage()
+
 if __name__ == '__main__':
     logger.info(f"Starting Flask application on {FLASK_HOST}:{FLASK_PORT} IN {APP_ENV} mode")
     app.run(
