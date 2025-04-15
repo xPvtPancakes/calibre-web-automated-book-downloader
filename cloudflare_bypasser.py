@@ -101,6 +101,9 @@ def _get_chromium_args():
     
     arguments = [
         "--no-sandbox",
+        "--disable-gpu",
+        "--disable-dev-shm-usage",  # Often helpful in Docker
+        "--window-size=800,600"  # Optional, but recommended
     ]
     
     # Conditionally add verbose logging arguments
@@ -178,6 +181,7 @@ def _init_driver():
 def _get_driver():
     global DRIVER, DISPLAY
     global LAST_USED
+    logger.info("Getting driver...")
     LAST_USED = time.time()
     if env.DOCKERMODE and env.USE_CF_BYPASS and not DISPLAY:
         from pyvirtualdisplay import Display
@@ -189,9 +193,11 @@ def _get_driver():
         _reset_pyautogui_display_state()
     if not DRIVER:
         return _init_driver()
+    logger.log_resource_usage()
     return DRIVER
 
 def _reset_driver():
+    logger.log_resource_usage()
     logger.info("Resetting driver...")
     global DRIVER, DISPLAY
     if DRIVER:
@@ -218,7 +224,8 @@ def _reset_driver():
     except Exception as e:
         logger.warning(f"Error killing chrom: {e}")
     time.sleep(0.5)
-
+    logger.info("Driver reset.")
+    logger.log_resource_usage()
 
 def _cleanup_driver():
     global LOCKED

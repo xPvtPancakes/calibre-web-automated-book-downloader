@@ -3,6 +3,7 @@ set -e
 
 # Configure timezone
 if [ "$TZ" ]; then
+    echo "Setting timezone to $TZ"
     ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 fi
 
@@ -17,20 +18,23 @@ if [ -z "$GID" ]; then
 fi
 
 if ! getent group "$GID" >/dev/null; then
+    echo "Adding group $GID with name appuser"
     groupadd -g "$GID" appuser
 fi
 
 # Create user if it doesn't exist
 if ! id -u "$UID" >/dev/null 2>&1; then
+    echo "Adding user $UID with name appuser"
     useradd -u "$UID" -g "$GID" -d /app -s /sbin/nologin appuser
 fi
 
 # Get username for the UID (whether we just created it or it existed)
 USERNAME=$(getent passwd "$UID" | cut -d: -f1)
-
+echo "Username for UID $UID is $USERNAME"
 # Ensure proper ownership of application directories
 change_ownership() {
   folder=$1
+  echo "Changing ownership of $folder to $USERNAME:$GID"
   chown -R "${UID}:${GID}" "${folder}" || echo "Failed to change ownership for ${folder}, continuing..."
 }
 
@@ -45,6 +49,17 @@ if [ "$is_prod" = "prod" ]; then
 else
     command="python3 app.py"
 fi
+
+echo "Making sure /tmp is mounted and has enough space"
+df -h /tmp
+
+# Hacky way to verify /tmp has at least 1MB of space and is writable/readable
+echo "Verifying /tmp has enough space"
+rm -f /tmp/test.cwa-bd
+for i in {1..150000}; do printf "%04d\n" $i; done > /tmp/test.cwa-bd
+sum=$(python3 -c "print(sum(int(l.strip()) for l in open('/tmp/test.cwa-bd').readlines()))")
+[ "$sum" == 11250075000 ] && echo "Success: /tmp is writable" || (echo "Failure: /tmp is not writable" && exit 1)
+rm /tmp/test.cwa-bd
 
 echo "Running command: '$command' as '$USERNAME' in '$APP_ENV' mode"
 
