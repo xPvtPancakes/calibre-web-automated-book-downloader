@@ -73,7 +73,10 @@ fi
 # Then set the timezone
 
 # Get timezone from IP
-TIMEZONE=$(pyrequests https://ipapi.co/timezone)
+TIMEZONE=$(pyrequests https://ipapi.co/timezone) ||
+TIMEZONE=$(pyrequests http://worldtimeapi.org/api/ip | grep -oP '"timezone":"\K[^"]+') ||
+true
+
 # If TIMEZONE is not set, use the default timezone
 echo "[*] Current Timezone : $(date +%Z). IP Timezone: $TIMEZONE"
 
