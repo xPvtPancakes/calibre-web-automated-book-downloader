@@ -100,10 +100,6 @@ def _bypass(sb, max_retries: int = MAX_RETRY) -> None:
 def _get_chromium_args():
     
     arguments = [
-        "--no-sandbox",
-        "--disable-gpu",
-        "--disable-dev-shm-usage",  # Often helpful in Docker
-        "--window-size=800,600"  # Optional, but recommended
     ]
     
     # Conditionally add verbose logging arguments
@@ -185,7 +181,7 @@ def _get_driver():
     LAST_USED = time.time()
     if env.DOCKERMODE and env.USE_CF_BYPASS and not DISPLAY:
         from pyvirtualdisplay import Display
-        display = Display(visible=False, size=(800, 600))
+        display = Display(visible=False, size=(1440, 1880))
         display.start()
         logger.info("Display started")
         DISPLAY = display
