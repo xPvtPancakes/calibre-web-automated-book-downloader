@@ -1,4 +1,12 @@
 #!/bin/bash
+LOG_DIR=${LOG_ROOT:-/var/log/}/cwa-book-downloader
+mkdir -p $LOG_DIR
+LOG_FILE=${LOG_DIR}/cwa-bd_entrypoint.log
+
+exec 3>&1 4>&2
+exec > >(tee -a $LOG_FILE) 2>&1
+echo "Starting entrypoint script"
+echo "Log file: $LOG_FILE"
 set -e
 
 # Configure timezone
@@ -50,8 +58,59 @@ else
     command="python3 app.py"
 fi
 
-echo "Making sure /tmp is mounted and has enough space"
-df -h /tmp
+# IF DEBUG
+if [ "$FLASK_DEBUG" = "true" ]; then
+    set +e
+    set -x
+    echo "vvvvvvvvvvvv DEBUG MODE vvvvvvvvvvvv"
+    echo "Starting Xvfb for debugging"
+    python3 -c "from pyvirtualdisplay import Display; Display(visible=False, size=(1440,1880)).start()"
+    id
+    free -h
+    uname -a
+    ulimit -a
+    df -h /tmp
+    env | sort
+    mount
+    cat /proc/cpuinfo
+    echo "==========================================="
+    echo "Debugging Chrome itself"
+    chromium --version
+    mkdir -p /tmp/chrome_crash_dumps
+    timeout --preserve-status 5s chromium \
+            --headless=new \
+            --no-sandbox \
+            --disable-gpu \
+            --enable-logging --v=1 --log-level=0 \
+            --log-file=/tmp/chrome_entrypoint_test.log \
+            --crash-dumps-dir=/tmp/chrome_crash_dumps \
+            < /dev/null 
+    EXIT_CODE=$?
+    echo "Chrome exit code: $EXIT_CODE"
+    ls -lh /tmp/chrome_entrypoint_test.log
+    ls -lh /tmp/chrome_crash_dumps
+    if [[ "$EXIT_CODE" -ne 0 && "$EXIT_CODE" -le 127 ]]; then
+        echo "Chrome failed to start. Lets trace it"
+        apt-get update && apt-get install -y strace
+        timeout --preserve-status 10s strace -f -o "/tmp/chrome_strace.log" chromium \
+                --headless=new \
+                --no-sandbox \
+                --version \
+                < /dev/null
+        EXIT_CODE=$?
+        echo "Strace exit code: $EXIT_CODE"
+        echo "Strace log:"
+        cat /tmp/chrome_strace.log
+    fi
+
+    pkill -9 -f Xvfb
+    pkill -9 -f chromium
+    sleep 1
+    ps aux
+    set +x
+    set -e
+    echo "^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+fi
 
 # Hacky way to verify /tmp has at least 1MB of space and is writable/readable
 echo "Verifying /tmp has enough space"
@@ -62,5 +121,9 @@ sum=$(python3 -c "print(sum(int(l.strip()) for l in open('/tmp/test.cwa-bd').rea
 rm /tmp/test.cwa-bd
 
 echo "Running command: '$command' as '$USERNAME' in '$APP_ENV' mode"
+
+# Stop logging
+exec 1>&3 2>&4
+exec 3>&- 4>&-
 
 exec sudo -E -u "$USERNAME" $command
