@@ -10,7 +10,7 @@ import typing
 
 from logger import setup_logger
 from config import _SUPPORTED_BOOK_LANGUAGE, BOOK_LANGUAGE
-from env import FLASK_HOST, FLASK_PORT, FLASK_DEBUG, APP_ENV
+from env import FLASK_HOST, FLASK_PORT, APP_ENV, DEBUG
 import backend
 
 from models import SearchFilters
@@ -73,7 +73,7 @@ def index() -> str:
     """
     Render main page with search and status table.
     """
-    return render_template('index.html', book_languages=_SUPPORTED_BOOK_LANGUAGE, default_language=BOOK_LANGUAGE)
+    return render_template('index.html', book_languages=_SUPPORTED_BOOK_LANGUAGE, default_language=BOOK_LANGUAGE, debug=DEBUG)
 
 @app.route('/favico<path:_>')
 @app.route('/request/favico<path:_>')
@@ -83,6 +83,44 @@ def favicon(_ : typing.Any) -> Response:
         'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 from typing import Union, Tuple
+
+if DEBUG:
+    import subprocess
+    import time
+    from cloudflare_bypasser import _reset_driver as STOP_GUI
+    @app.route('/debug', methods=['GET'])
+    def debug() -> Union[Response, Tuple[Response, int]]:
+        """
+        This will run the /app/debug.sh script, which will generate a debug zip with all the logs
+        The file will be named /tmp/cwa-book-downloader-debug.zip
+        And then return it to the user
+        """
+        try:
+            # Run the debug script
+            STOP_GUI()
+            time.sleep(1)
+            result = subprocess.run(['/app/genDebug.sh'], capture_output=True, text=True, check=True)
+            if result.returncode != 0:
+                raise Exception(f"Debug script failed: {result.stderr}")
+            logger.info(f"Debug script executed: {result.stdout}")
+            debug_file_path = result.stdout.strip().split('\n')[-1]
+            if not os.path.exists(debug_file_path):
+                logger.error("Debug zip file not found after running debug script")
+                return jsonify({"error": "Failed to generate debug information"}), 500
+                
+            # Return the file to the user
+            return send_file(
+                debug_file_path,
+                mimetype='application/zip',
+                download_name=os.path.basename(debug_file_path),
+                as_attachment=True
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error_trace(f"Debug script error: {e}, stdout: {e.stdout}, stderr: {e.stderr}")
+            return jsonify({"error": f"Debug script failed: {e.stderr}"}), 500
+        except Exception as e:
+            logger.error_trace(f"Debug endpoint error: {e}")
+            return jsonify({"error": str(e)}), 500
 
 @app.route('/api/search', methods=['GET'])
 def api_search() -> Union[Response, Tuple[Response, int]]:
@@ -260,5 +298,5 @@ if __name__ == '__main__':
     app.run(
         host=FLASK_HOST,
         port=FLASK_PORT,
-        debug=FLASK_DEBUG  # Disable debug mode in production
+        debug=DEBUG 
     )

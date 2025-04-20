@@ -3,6 +3,9 @@ LOG_DIR=${LOG_ROOT:-/var/log/}/cwa-book-downloader
 mkdir -p $LOG_DIR
 LOG_FILE=${LOG_DIR}/cwa-bd_entrypoint.log
 
+# Cleanup any existing files or folders in the log directory
+rm -rf $LOG_DIR/*
+
 exec 3>&1 4>&2
 exec > >(tee -a $LOG_FILE) 2>&1
 echo "Starting entrypoint script"
@@ -63,7 +66,7 @@ else
 fi
 
 # IF DEBUG
-if [ "$FLASK_DEBUG" = "true" ]; then
+if [ "$DEBUG" = "true" ]; then
     set +e
     set -x
     echo "vvvvvvvvvvvv DEBUG MODE vvvvvvvvvvvv"

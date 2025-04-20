@@ -8,6 +8,8 @@ services:
       dockerfile: Dockerfile
       target: cwa-bd-tor
     environment:
-      LOG_LEVEL: debug
-      FLASK_DEBUG: true
+      DEBUG: true
       APP_ENV: dev
+    volumes:
+      - /tmp/cwa-book-downloader:/tmp/cwa-book-downloader
+      - /tmp/cwa-book-downloader-log:/var/log/cwa-book-downloader
