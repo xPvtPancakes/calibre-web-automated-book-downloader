@@ -5,6 +5,9 @@ from urllib.parse import urlparse
 import threading
 import env
 from env import LOG_DIR, DEBUG
+import signal
+from datetime import datetime
+import subprocess
 
 # --- SeleniumBase Import ---
 from seleniumbase import Driver
@@ -16,13 +19,16 @@ from selenium.common.exceptions import TimeoutException
 import network
 from logger import setup_logger
 from env import MAX_RETRY, DEFAULT_SLEEP
-from config import PROXIES, CUSTOM_DNS, DOH_SERVER
+from config import PROXIES, CUSTOM_DNS, DOH_SERVER, VIRTUAL_SCREEN_SIZE, recording_dir
 
 logger = setup_logger(__name__)
 network.init()
 
 DRIVER = None
-DISPLAY = None
+DISPLAY = {
+    "xvfb": None,
+    "ffmpeg": None,
+}
 LAST_USED = None
 LOCKED = threading.Lock()
 TENTATIVE_CURRENT_URL = None
@@ -66,6 +72,21 @@ def _is_bypassed(sb) -> bool:
         logger.debug(f"Error checking page title: {e}")
         return False
 
+def _bypass_method_1(sb) -> bool:
+    try:
+        sb.uc_gui_click_captcha()
+    except Exception as e:
+        logger.debug_trace(f"Error clicking captcha: {e}")
+        time.sleep(5)
+        sb.wait_for_element_visible('body')
+        try:
+            sb.uc_gui_click_captcha()
+        except Exception as e:
+            logger.debug_trace(f"Error clicking captcha again: {e}")
+            time.sleep(DEFAULT_SLEEP)
+            sb.uc_gui_click_captcha()
+    return _is_bypassed(sb)
+
 def _bypass(sb, max_retries: int = MAX_RETRY) -> None:
     try_count = 0
 
@@ -81,21 +102,10 @@ def _bypass(sb, max_retries: int = MAX_RETRY) -> None:
         logger.info(f"Waiting {wait_time}s before trying...")
         time.sleep(wait_time)
 
-        try:
-            sb.uc_gui_click_captcha()
-        except Exception as e:
-            time.sleep(5)
-            sb.wait_for_element_visible('body')
-            try:
-                sb.uc_gui_click_captcha()
-            except Exception as e:
-                time.sleep(DEFAULT_SLEEP)
-                sb.uc_gui_click_captcha()
+        if _bypass_method_1(sb):
+            return
 
-        if _is_bypassed(sb):
-            logger.info("Bypass successful.")
-        else:
-            logger.info("Bypass failed.")
+        logger.info("Bypass failed.")
 
 def _get_chromium_args():
     
@@ -148,7 +158,9 @@ def _get(url, retry : int = MAX_RETRY):
         sb.uc_open_with_reconnect(url, DEFAULT_SLEEP)
         time.sleep(DEFAULT_SLEEP)
         _bypass(sb)
-        return sb.page_source
+        if _is_bypassed(sb):
+            logger.info("Bypass successful.")
+            return sb.page_source
     except Exception as e:
         if retry == 0:
             logger.error_trace(f"Failed to initialize browser: {e}")
@@ -169,7 +181,7 @@ def _init_driver():
     global DRIVER
     if DRIVER:
         _reset_driver()
-    driver = Driver(uc=True, headless=False, chromium_arg=CHROMIUM_ARGS)
+    driver = Driver(uc=True, headless=False, size=f"{VIRTUAL_SCREEN_SIZE[0]},{VIRTUAL_SCREEN_SIZE[1]}", chromium_arg=CHROMIUM_ARGS)
     DRIVER = driver
     time.sleep(DEFAULT_SLEEP)
     return driver
@@ -179,14 +191,41 @@ def _get_driver():
     global LAST_USED
     logger.info("Getting driver...")
     LAST_USED = time.time()
-    if env.DOCKERMODE and env.USE_CF_BYPASS and not DISPLAY:
+    if env.DOCKERMODE and env.USE_CF_BYPASS and not DISPLAY["xvfb"]:
         from pyvirtualdisplay import Display
-        display = Display(visible=False, size=(1440, 1880))
+        display = Display(visible=False, size=VIRTUAL_SCREEN_SIZE)
         display.start()
         logger.info("Display started")
-        DISPLAY = display
+        DISPLAY["xvfb"] = display
         time.sleep(DEFAULT_SLEEP)
         _reset_pyautogui_display_state()
+
+        if env.DEBUG:
+            timestamp = datetime.now().strftime("%y%m%d-%H%M%S")
+            output_file = recording_dir / f"screen_recording_{timestamp}.mp4"
+
+            ffmpeg_cmd = [
+                "ffmpeg",
+                "-y",
+                "-f", "x11grab",
+                "-video_size", f"{VIRTUAL_SCREEN_SIZE[0]}x{VIRTUAL_SCREEN_SIZE[1]}",
+                "-i", f":{display.display}",
+                "-c:v", "libx264",
+                "-preset", "ultrafast",  # or "veryfast" (trade speed for slightly better compression)
+                "-maxrate", "700k",      # Slightly higher bitrate for text clarity
+                "-bufsize", "1400k",    # Buffer size (2x maxrate)
+                "-crf", "36",  # Adjust as needed:  higher = smaller, lower = better quality (23 is visually lossless)
+                "-pix_fmt", "yuv420p",  # Crucial for compatibility with most players
+                "-tune", "animation",   # Optimize encoding for screen content
+                "-x264-params", "bframes=0:deblock=-1,-1", # Optimize for text, disable b-frames and deblocking
+                "-r", "15",         # Reduce frame rate (if content allows)
+                "-an",                # Disable audio recording (if not needed)
+                output_file.as_posix(),
+                "-nostats", "-loglevel", "0"
+            ]
+            logger.info("Starting FFmpeg recording to %s", output_file)
+            logger.debug_trace(f"FFmpeg command: {' '.join(ffmpeg_cmd)}")
+            DISPLAY["ffmpeg"] = subprocess.Popen(ffmpeg_cmd)
     if not DRIVER:
         return _init_driver()
     logger.log_resource_usage()
@@ -203,22 +242,34 @@ def _reset_driver():
         except Exception as e:
             logger.warning(f"Error quitting driver: {e}")
         time.sleep(0.5)
-    if DISPLAY:
+    if DISPLAY["xvfb"]:
         try:
-            DISPLAY.stop()
-            DISPLAY = None
+            DISPLAY["xvfb"].stop()
+            DISPLAY["xvfb"] = None
         except Exception as e:
             logger.warning(f"Error stopping display: {e}")
         time.sleep(0.5)
     try:
         os.system("pkill -f Xvfb")
     except Exception as e:
-        logger.warning(f"Error killing Xvfb: {e}")
+        logger.debug(f"Error killing Xvfb: {e}")
+    time.sleep(0.5)
+    if DISPLAY["ffmpeg"]:
+        try:
+            DISPLAY["ffmpeg"].send_signal(signal.SIGINT)
+            DISPLAY["ffmpeg"] = None
+        except Exception as e:
+            logger.debug(f"Error stopping ffmpeg: {e}")
+        time.sleep(0.5)
+    try:
+        os.system("pkill -f ffmpeg")
+    except Exception as e:
+        logger.debug(f"Error killing ffmpeg: {e}")
     time.sleep(0.5)
     try:
         os.system("pkill -f chrom")
     except Exception as e:
-        logger.warning(f"Error killing chrom: {e}")
+        logger.debug(f"Error killing chrom: {e}")
     time.sleep(0.5)
     logger.info("Driver reset.")
     logger.log_resource_usage()
@@ -238,46 +289,10 @@ def _cleanup_loop():
         _cleanup_driver()
         time.sleep(max(env.BYPASS_RELEASE_INACTIVE_MIN / 2, 1))
 
-def _debug_loop():
-    while True:
-        if DRIVER:
-            try:
-                # Get URL with fallback to tentative URL
-                try:
-                    url = DRIVER.current_url
-                except Exception as e:
-                    url = TENTATIVE_CURRENT_URL or "unknown_url"
-
-                # Create timestamp and filename
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                filename = f"screenshot_{timestamp}_{url}"
-                
-                # Sanitize filename
-                sanitized_filename = "".join(c if c.isalnum() or c in ('-', '_', '.') else '_' for c in filename)
-                sanitized_filename = sanitized_filename[:100] + ".png"  # Limit length
-                
-                # Ensure screenshots directory exists
-                screenshots_dir = env.LOG_DIR / "screenshots"
-                screenshots_dir.mkdir(parents=True, exist_ok=True)
-                
-                # Save screenshot
-                full_path = screenshots_dir / sanitized_filename
-
-                DRIVER.save_screenshot(str(full_path))
-            except Exception as e:
-                pass
-        time.sleep(1)
-
 def _init_cleanup_thread():
     cleanup_thread = threading.Thread(target=_cleanup_loop)
     cleanup_thread.daemon = True
     cleanup_thread.start()
-    if env.DEBUG:
-        path = env.LOG_DIR / "screenshots"
-        path.mkdir(parents=True, exist_ok=True)
-        debug_thread = threading.Thread(target=_debug_loop)
-        debug_thread.daemon = True
-        debug_thread.start()
 
 def wait_for_result(func, timeout : int = 10, condition : any = True):
     start_time = time.time()

@@ -54,8 +54,8 @@ An intuitive web interface for searching and requesting book downloads, designed
 | Variable          | Description             | Default Value      |
 | ----------------- | ----------------------- | ------------------ |
 | `FLASK_PORT`      | Web interface port      | `8084`             |
-| `FLASK_DEBUG`     | Debug mode toggle       | `false`            |
 | `FLASK_HOST`      | Web interface binding   | `0.0.0.0`          |
+| `DEBUG`           | Debug mode toggle       | `false`            |
 | `INGEST_DIR`      | Book download directory | `/cwa-book-ingest` |
 | `TZ`              | Container timezone      | `UTC`              |
 | `UID`             | Runtime user ID         | `1000`             |

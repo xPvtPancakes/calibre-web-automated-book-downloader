@@ -10,6 +10,8 @@ logger = setup_logger(__name__)
 
 for key, value in env.__dict__.items():
     if not key.startswith('_'):
+        if key == "AA_DONATOR_KEY" and value.strip() != "":
+            value = "REDACTED"
         logger.info(f"{key}: {value}")
 
 with open("data/book-languages.json") as file:
@@ -90,3 +92,8 @@ if CUSTOM_SCRIPT:
         logger.warn(f"CUSTOM_SCRIPT {CUSTOM_SCRIPT} is not executable")
         CUSTOM_SCRIPT = ""
 
+# Debugging settings
+VIRTUAL_SCREEN_SIZE = (1024, 768)
+if env.DEBUG:
+    recording_dir = env.LOG_DIR / "recording"
+    recording_dir.mkdir(parents=True, exist_ok=True)

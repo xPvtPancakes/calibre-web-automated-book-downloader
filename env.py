@@ -23,9 +23,12 @@ _BOOK_LANGUAGE = os.getenv("BOOK_LANGUAGE", "en").lower()
 _CUSTOM_SCRIPT = os.getenv("CUSTOM_SCRIPT", "").strip()
 FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
 FLASK_PORT = int(os.getenv("FLASK_PORT", "8084"))
-FLASK_DEBUG = string_to_bool(os.getenv("FLASK_DEBUG", "False"))
-DEBUG = FLASK_DEBUG
-LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+DEBUG = string_to_bool(os.getenv("DEBUG", "False"))
+# If debug is true, we want to log everything
+if DEBUG:
+    LOG_LEVEL = "DEBUG"
+else:
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 ENABLE_LOGGING = string_to_bool(os.getenv("ENABLE_LOGGING", "true"))
 MAIN_LOOP_SLEEP_TIME = int(os.getenv("MAIN_LOOP_SLEEP_TIME", "5"))
 DOCKERMODE = string_to_bool(os.getenv("DOCKERMODE", "false"))

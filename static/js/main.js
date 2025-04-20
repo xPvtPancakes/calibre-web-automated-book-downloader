@@ -27,6 +27,11 @@ document.addEventListener('DOMContentLoaded', () => {
             toggle: document.getElementById('theme-toggle'),
             text: document.getElementById('theme-text'),
             dropdown: document.querySelector('[uk-dropdown]'),
+        },
+        debug: {
+            form: document.getElementById('debug-form'),
+            button: document.getElementById('debug-button'),
+            spinner: document.getElementById('debug-spinner')
         }
     };
 
@@ -656,6 +661,90 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Debug Functions
+    const debug = {
+        init() {
+            if (!elements.debug.form) return;
+            
+            elements.debug.form.addEventListener('submit', (e) => {
+                e.preventDefault(); // Prevent default form submission
+                
+                if (elements.debug.button.disabled) {
+                    return; // Prevent multiple submissions
+                }
+                
+                // Disable button and show spinner
+                elements.debug.spinner.classList.remove('uk-hidden');
+                elements.debug.button.disabled = true;
+                
+                // Use fetch to make the request
+                fetch(elements.debug.form.action)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Debug request failed');
+                        }
+                        // Store content disposition before returning blob
+                        const contentDisposition = response.headers.get('Content-Disposition');
+                        return response.blob().then(blob => {
+                            return { blob, contentDisposition, url: response.url };
+                        });
+                    })
+                    .then(data => {
+                        // Create and click a download link
+                        const url = URL.createObjectURL(data.blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        
+                        // Extract filename from Content-Disposition header, URL, or use default
+                        let filename;
+                        if (data.contentDisposition) {
+                            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+                            const matches = filenameRegex.exec(data.contentDisposition);
+                            if (matches && matches[1]) {
+                                filename = matches[1].replace(/['"]/g, '');
+                            }
+                        }
+                        
+                        if (!filename) {
+                            // Extract from URL if header is not available
+                            const urlParts = data.url.split('/');
+                            filename = urlParts[urlParts.length - 1];
+                        }
+                        
+                        a.download = filename || "cwa-book-downloader-debug.zip";
+                        document.body.appendChild(a);
+                        a.click();
+                        
+                        // Clean up
+                        setTimeout(() => {
+                            URL.revokeObjectURL(url);
+                            document.body.removeChild(a);
+                            
+                            // Only reset UI after download starts
+                            elements.debug.spinner.classList.add('uk-hidden');
+                            elements.debug.button.disabled = false;
+                        }, 100);
+                    })
+                    .catch(error => {
+                        console.error('Debug download error:', error);
+                        
+                        // Reset UI on error
+                        elements.debug.spinner.classList.add('uk-hidden');
+                        elements.debug.button.disabled = false;
+                        
+                        // Show error notification
+                        UIkit.notification({
+                            message: 'Error generating debug file. Please try again.',
+                            status: 'danger',
+                            pos: 'top-center',
+                            timeout: 5000
+                        });
+                    });
+            });
+        }
+    };
+
     // Event Listeners
     function setupEventListeners() {
         // Search events
@@ -732,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function init() {
         setupEventListeners();
         theme.init();  // Initialize theme management
+        debug.init();  // Initialize debug functionality
         status.fetch();
         setInterval(() => status.fetch(), REFRESH_INTERVAL);
     }

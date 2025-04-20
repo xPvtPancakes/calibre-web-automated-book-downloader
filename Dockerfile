@@ -38,6 +38,10 @@ RUN apt-get update && \
     dumb-init \
     # For dumb display
     xvfb \
+    # For screen recording
+    ffmpeg \
+    # For debug
+    zip iputils-ping \
     # For user switching
     sudo \
     # --- Chromium Browser ---
@@ -74,7 +78,6 @@ RUN chmod -R o+rx /usr/bin/chromium && \
     chmod -R o+w /usr/local/lib/python3.10/site-packages/seleniumbase/drivers/
 
 # Our custom wanabe curl
-
 RUN echo "#!/bin/sh" > /usr/local/bin/pyrequests && \
     echo 'python -c "import sys, requests; url=sys.argv[1]; r=requests.get(url, timeout=10); print(r.text); sys.exit(0) if r.ok else sys.exit(1)" "$@"' \
       >> /usr/local/bin/pyrequests && \
@@ -88,7 +91,7 @@ COPY . .
 # Only creating directories and setting executable bits.
 # Ownership will be handled by the entrypoint script.
 RUN mkdir -p /var/log/cwa-book-downloader /cwa-book-ingest && \
-    chmod +x /app/entrypoint.sh /app/tor.sh 
+    chmod +x /app/entrypoint.sh /app/tor.sh /app/genDebug.sh
     # chown is removed
 
 
