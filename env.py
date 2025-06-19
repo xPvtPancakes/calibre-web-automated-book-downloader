@@ -50,5 +50,5 @@ if USING_TOR:
     HTTPS_PROXY = ""
 
 if CWA_DB_PATH and not CWA_DB_PATH.is_file():
-    raise FileNotFoundError("⚠️ Database file not found at {CWA_DB_PATH}")
+    raise FileNotFoundError(f"⚠️ Database file not found at {CWA_DB_PATH}")
     
