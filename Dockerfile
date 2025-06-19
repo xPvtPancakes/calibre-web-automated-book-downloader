@@ -89,7 +89,7 @@ COPY . .
 # Only creating directories and setting executable bits.
 # Ownership will be handled by the entrypoint script.
 RUN mkdir -p /var/log/cwa-book-downloader /cwa-book-ingest && \
-    chmod +x /app/entrypoint.sh /app/tor.sh /app/genDebug.sh
+    chmod +x /app/entrypoint.sh /app/genDebug.sh
 
 # Expose the application port
 EXPOSE ${FLASK_PORT}
@@ -106,25 +106,4 @@ ENTRYPOINT ["/usr/bin/dumb-init", "--"]
 FROM base AS cwa-bd
 
 # Default command to run the application entrypoint script
-CMD ["/app/entrypoint.sh"]
-
-FROM base AS cwa-bd-tor
-
-ENV USING_TOR=true
-
-# Install Tor and dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    # --- Tor ---
-    tor \
-    # --- iptables ---
-    iptables && \
-    update-alternatives --set iptables /usr/sbin/iptables-legacy && \
-    update-alternatives --set ip6tables /usr/sbin/ip6tables-legacy && \
-    # Cleanup APT cache *after* all installs in this layer
-    apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Override the default command to run Tor
 CMD ["/app/entrypoint.sh"]
