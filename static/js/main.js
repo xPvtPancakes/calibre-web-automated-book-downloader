@@ -23,6 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
         statusTableBody: document.querySelector('#status-table tbody'),
         modalOverlay: document.getElementById('modal-overlay'),
         detailsContainer: document.getElementById('details-container'),
+        statusSection: document.getElementById('status-section'),
         theme: {
             toggle: document.getElementById('theme-toggle'),
             text: document.getElementById('theme-text'),
@@ -52,6 +53,44 @@ document.addEventListener('DOMContentLoaded', () => {
         status: '/request/api/status'
     };
     const FILTERS = ['isbn', 'author', 'title', 'lang' , 'sort', "content"];
+
+    // Accordion Management Functions
+    const accordion = {
+        closeSearchResults() {
+            const searchAccordion = elements.resultsSectionAccordion;
+            if (searchAccordion) {
+                const accordion = UIkit.accordion(searchAccordion);
+                if (accordion) {
+                    // Close the accordion (toggle with false to close)
+                    accordion.toggle(0, false);
+                }
+            }
+        },
+
+        openDownloadStatus() {
+            const statusAccordion = elements.statusSection;
+            if (statusAccordion) {
+                const accordion = UIkit.accordion(statusAccordion);
+                if (accordion) {
+                    // Open the accordion (toggle with true to open)
+                    accordion.toggle(0, true);
+                }
+            }
+        },
+
+        handleDownloadButtonClick() {
+            // Close search results accordion
+            this.closeSearchResults();
+            
+            // Open download status accordion
+            this.openDownloadStatus();
+            
+            // Refresh status to show the new download
+            setTimeout(() => {
+                status.fetch();
+            }, 500); // Small delay to ensure the download request is processed
+        }
+    };
 
     // Utility Functions
     const utils = {
@@ -233,6 +272,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             this.clearAllCheckboxes();
             modal.close();
+            
+            // Trigger accordion management
+            accordion.handleDownloadButtonClick();
         },
 
         clearAllCheckboxes() {
@@ -374,8 +416,12 @@ document.addEventListener('DOMContentLoaded', () => {
             }, [utils.createElement('span', { textContent: 'Details' })]);
 
             const downloadButton = utils.createElement('button', {
-                className: 'uk-button uk-button-primary uk-align-center uk-margin-small uk-width-1-1',
-                onclick: () => bookDetails.downloadBook(book)
+                className: 'uk-button uk-button-primary uk-align-center uk-margin-small uk-width-1-1 download-button',
+                onclick: () => {
+                    bookDetails.downloadBook(book);
+                    // Trigger accordion management
+                    accordion.handleDownloadButtonClick();
+                }
             }, [utils.createElement('span', { textContent: 'Download' })]);
 
             return utils.createElement('td', {}, [buttonDetails, downloadButton]);
@@ -422,7 +468,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Add event listeners
             document.getElementById('download-button')
-                .addEventListener('click', () => this.downloadBook(book));
+                .addEventListener('click', () => {
+                    this.downloadBook(book);
+                    // Trigger accordion management
+                    accordion.handleDownloadButtonClick();
+                });
             document.getElementById('close-details')
                 .addEventListener('click', modal.close);
         },
@@ -445,7 +495,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         <p><strong>Size:</strong> ${book.size || 'N/A'}</p>
                     </div>
                     
-                    <button id="download-button" class="uk-button uk-button-primary" type="button">Download</button>
+                    <button id="download-button" class="uk-button uk-button-primary download-button" type="button">Download</button>
                     <button id="close-details" class="uk-button uk-button-default uk-modal-close" type="button">Close</button>
                 </div>
                 <ul uk-accordion>
@@ -748,30 +798,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event Listeners
     function setupEventListeners() {
         // Search events
-		
-		document.addEventListener('DOMContentLoaded', function () {
-            // Delegate to any download button clicked
-            document.body.addEventListener('click', function (e) {
-                const target = e.target.closest('button');
-                if (!target) return;
-
-                // Adjust this if your download buttons have a specific class
-                if (target.id === 'download-selected-button' || target.classList.contains('download-button')) {
-            // Close "Search Results" accordion
-                    const searchAccordion = document.querySelector('#results-section-accordion > li');
-                    if (searchAccordion && searchAccordion.classList.contains('uk-open')) {
-                        UIkit.accordion('#results-section-accordion').toggle(0); // Collapse first item
-                    }
-
-                    // Open "Download Status" accordion
-                    const statusAccordion = document.querySelector('#status-section > li');
-                    if (statusAccordion && !statusAccordion.classList.contains('uk-open')) {
-                        UIkit.accordion('#status-section').toggle(0); // Expand first item
-                    }
-                }
-            });
-        });
-
         elements.search.searchButton.addEventListener('click', () => {
             const query = search.buildQuery();
             if(query) search.performSearch(query);
@@ -804,6 +830,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.close();
             }
         });
+        
         // Download selected books
         elements.downloadSelectedButton.addEventListener('click', utils.handleDownloadSelected);
 
@@ -838,7 +865,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         setupSorting();
-
     }
 
     // Initialize
