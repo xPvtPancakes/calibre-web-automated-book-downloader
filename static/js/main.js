@@ -227,24 +227,13 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         async confirmDownload(bookIds) {
-            await Promise.all(
-                bookIds.map((bookId) =>
-                    utils.fetchJson(`${API_ENDPOINTS.download}?id=${encodeURIComponent(bookId)}`)
-                )
+            bookIds.map((bookId) =>
+                utils.fetchJson(`${API_ENDPOINTS.download}?id=${encodeURIComponent(bookId)}`)
             );
 
             this.clearAllCheckboxes();
             modal.close();
-
-        // NOW toggle accordions:
-            const resultsAcc = UIkit.accordion('#results-section-accordion');
-            resultsAcc.toggle(0, false);  // Collapse search results
-
-            const statusAcc = UIkit.accordion('#status-section');
-            statusAcc.toggle(0, true);    // Expand download status
-
-            status.fetch(); // Refresh download status immediately
-        }
+        },
 
         clearAllCheckboxes() {
             selectedBooks.forEach((bookId) => {
