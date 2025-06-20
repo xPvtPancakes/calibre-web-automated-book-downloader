@@ -748,6 +748,30 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event Listeners
     function setupEventListeners() {
         // Search events
+		
+		document.addEventListener('DOMContentLoaded', function () {
+            // Delegate to any download button clicked
+            document.body.addEventListener('click', function (e) {
+                const target = e.target.closest('button');
+                if (!target) return;
+
+                // Adjust this if your download buttons have a specific class
+                if (target.id === 'download-selected-button' || target.classList.contains('download-button')) {
+            // Close "Search Results" accordion
+                    const searchAccordion = document.querySelector('#results-section-accordion > li');
+                    if (searchAccordion && searchAccordion.classList.contains('uk-open')) {
+                        UIkit.accordion('#results-section-accordion').toggle(0); // Collapse first item
+                    }
+
+                    // Open "Download Status" accordion
+                    const statusAccordion = document.querySelector('#status-section > li');
+                    if (statusAccordion && !statusAccordion.classList.contains('uk-open')) {
+                        UIkit.accordion('#status-section').toggle(0); // Expand first item
+                    }
+                }
+            });
+        });
+
         elements.search.searchButton.addEventListener('click', () => {
             const query = search.buildQuery();
             if(query) search.performSearch(query);
