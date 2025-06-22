@@ -2,94 +2,82 @@
 document.addEventListener('DOMContentLoaded', () => {
     // DOM Elements
     const elements = {
-        search: {
-            searchInput: document.getElementById('search-input'),
-            searchButton: document.getElementById('search-button'),
-            advanced: {
-                advSearchButton: document.getElementById('adv-search-button'),
-                searchFiltersForm: document.getElementById('search-filters')
-            }
-        },
-        selectAllCheckbox: document.getElementById('select-all-checkbox'),
-        downloadSelectedButton: document.getElementById('download-selected-button'),
+        searchInput: document.getElementById('search-input'),
+        searchButton: document.getElementById('search-button'),
         resultsSectionAccordion: document.getElementById('results-section-accordion'),
+        hideResultsButton: document.getElementById('hide-results-button'),
+        resultsCardContainer: document.getElementById('results-card-container'),
         searchAccordion: document.getElementById('search-accordion'),
         resultsHeading: document.getElementById('results-heading'),
         resultsTable: document.getElementById('results-table'),
-        resultsTableBody: document.querySelector('#results-table tbody'),
+        resultsTableBody: document.getElementById('results-table-body'),
         searchLoading: document.getElementById('search-loading'),
         statusLoading: document.getElementById('status-loading'),
         statusTable: document.getElementById('status-table'),
-        statusTableBody: document.querySelector('#status-table tbody'),
+        statusTableBody: document.getElementById('status-table-body'),
         modalOverlay: document.getElementById('modal-overlay'),
         detailsContainer: document.getElementById('details-container'),
-        statusSection: document.getElementById('status-section'),
-        theme: {
-            toggle: document.getElementById('theme-toggle'),
-            text: document.getElementById('theme-text'),
-            dropdown: document.querySelector('[uk-dropdown]'),
-        },
-        debug: {
-            form: document.getElementById('debug-form'),
-            button: document.getElementById('debug-button'),
-            spinner: document.getElementById('debug-spinner')
+        statusCardContainer: document.getElementById('status-card-container'), // Add this line
+        scrollButton: document.getElementById('scroll-toggle-button'),
+        body: document.body,
+        html: document.documentElement, // For cross-browser compatibility
+        header: document.querySelector('header'), // For scrolling to the top
+        darkModeToggle: document.getElementById('dark-mode-toggle'),
+        sunIcon: document.getElementById('sun-icon'),
+        moonIcon: document.getElementById('moon-icon'),
+    };
+
+    let isAtTop = true; // State to track scroll position
+
+    // Scroll to the appropriate position
+    elements.scrollButton.addEventListener('click', () => {
+        if (isAtTop) {
+            // Scroll to the bottom of the page
+            window.scrollTo({
+                top: elements.html.scrollHeight,
+                behavior: 'smooth',
+            });
+        } else {
+            // Scroll to the top of the page
+            elements.header.scrollIntoView({ behavior: 'smooth' });
         }
+
+        // Toggle state and update the button icon
+        isAtTop = !isAtTop;
+        updateScrollButtonIcon();
+    });
+
+    // Update button icon
+    function updateScrollButtonIcon() {
+        elements.scrollButton.innerHTML = isAtTop
+            ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a1 1 0 01-.707-.293l-4-4a1 1 0 111.414-1.414L9 15.586V4a1 1 0 112 0v11.586l2.293-2.293a1 1 0 111.414 1.414l-4 4A1 1 0 0110 18z" clip-rule="evenodd" />
+                </svg>`
+            : `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 2a1 1 0 01.707.293l4 4a1 1 0 01-1.414 1.414L11 4.414V16a1 1 0 11-2 0V4.414l-2.293 2.293a1 1 0 11-1.414-1.414l4-4A1 1 0 0110 2z" clip-rule="evenodd" />
+                </svg>`;
+    }
+
+    // Ensure button is visible on mobile only
+    const mediaQuery = window.matchMedia('(max-width: 640px)');
+    if (mediaQuery.matches) {
+        elements.scrollButton.classList.remove('hidden');
     };
 
     // State
-    let modalDetails = null;
-    const selectedBooks = new Set();
+    let currentBookDetails = null;
     const STATE = {
         isSearching: false,
-        isLoadingDetails: false,
+        isLoadingDetails: false
     };
 
     // Constants
     const REFRESH_INTERVAL = 60000; // 60 seconds
     const API_ENDPOINTS = {
-        search: '/request/api/search',
-        info: '/request/api/info',
-        download: '/request/api/download',
-        status: '/request/api/status'
-    };
-    const FILTERS = ['isbn', 'author', 'title', 'lang' , 'sort', "content"];
-
-    // Accordion Management Functions
-    const accordion = {
-        closeSearchResults() {
-            const searchAccordion = elements.resultsSectionAccordion;
-            if (searchAccordion) {
-                const accordion = UIkit.accordion(searchAccordion);
-                if (accordion) {
-                    // Close the accordion (toggle with false to close)
-                    accordion.toggle(0, false);
-                }
-            }
-        },
-
-        openDownloadStatus() {
-            const statusAccordion = elements.statusSection;
-            if (statusAccordion) {
-                const accordion = UIkit.accordion(statusAccordion);
-                if (accordion) {
-                    // Open the accordion (toggle with true to open)
-                    accordion.toggle(0, true);
-                }
-            }
-        },
-
-        handleDownloadButtonClick() {
-            // Close search results accordion
-            this.closeSearchResults();
-            
-            // Open download status accordion
-            this.openDownloadStatus();
-            
-            // Refresh status to show the new download
-            setTimeout(() => {
-                status.fetch();
-            }, 500); // Small delay to ensure the download request is processed
-        }
+        search: '/api/search',
+        info: '/api/info',
+        download: '/api/download',
+        status: '/api/status'
     };
 
     // Utility Functions
@@ -136,327 +124,223 @@ document.addEventListener('DOMContentLoaded', () => {
             Object.entries(attributes).forEach(([key, value]) => {
                 element[key] = value;
             });
-            children.forEach(child => {
+        
+            // Ensure children is an array
+            const childArray = Array.isArray(children) ? children : [children];
+        
+            childArray.forEach(child => {
                 if (typeof child === 'string') {
                     element.appendChild(document.createTextNode(child));
                 } else {
                     element.appendChild(child);
                 }
             });
+        
             return element;
-        },
-
-        sortResultsTable(column, order = 'asc') {
-            const rows = Array.from(elements.resultsTableBody.querySelectorAll('tr'));
-            const headers = document.querySelectorAll('#results-table thead th');
-
-            const parseFileSize = (size) => {
-                const match = size.match(/([\d.]+)([KMGT]B)/i);
-                if (!match) return 0;
-                const [_, value, unit] = match;
-                const multiplier = { KB: 1, MB: 1024, GB: 1024 * 1024, TB: 1024 * 1024 * 1024 };
-                return parseFloat(value) * (multiplier[unit.toUpperCase()] || 1);
-            };
-
-            const parseTitle = (title) => {
-                return title.replace(/^(The)\s+/i, '').trim();
-            }
-
-            const columnName = headers[column].textContent.trim().toLowerCase();
-
-            const getCellValue = (row, column) => {
-                const cell = row.querySelector(`td:nth-child(${column + 1})`);
-                const text = cell ? cell.textContent.trim() : '';
-                if (columnName === 'size') return parseFileSize(text);
-                if (columnName === 'title') return parseTitle(text);
-                return text;
-            };
-
-            rows.sort((a, b) => {
-                const valA = getCellValue(a, column);
-                const valB = getCellValue(b, column);
-
-                if (!isNaN(valA) && !isNaN(valB)) {
-                    return order === 'asc' ? valA - valB : valB - valA;
-                }
-                return order === 'asc'
-                    ? valA.localeCompare(valB)
-                    : valB.localeCompare(valA);
-            });
-
-            elements.resultsTableBody.innerHTML = '';
-            rows.forEach(row => elements.resultsTableBody.appendChild(row));
-
-            headers.forEach(header => {
-                const icon = header.querySelector('.sort-icon');
-                if (icon) {
-                    icon.removeAttribute('uk-icon');
-                }
-            });
-
-            const currentHeader = headers[column];
-            const icon = currentHeader.querySelector('.sort-icon');
-            if (icon) {
-                icon.setAttribute('uk-icon', `icon: ${order === 'asc' ? 'triangle-up' : 'triangle-down'}`);
-            }
-        },
-
-        updateDownloadSelectedButton() {
-            elements.downloadSelectedButton.disabled = selectedBooks.size === 0;
-        },
-
-        handleCheckboxChange(event) {
-            const checkbox = event.target;
-            if (checkbox.checked) {
-                selectedBooks.add(checkbox.value);
-            } else {
-                selectedBooks.delete(checkbox.value);
-            }
-            utils.updateDownloadSelectedButton();
-        },
-
-        async handleDownloadSelected() {
-            if (selectedBooks.size === 0) return;
-
-            const bookIds = Array.from(selectedBooks);
-            const books = bookIds.map((bookId) => {
-                const row = document.querySelector(`#book-${bookId}`).closest('tr');
-                return {
-                    title: row.querySelector('td:nth-child(4)').textContent,
-                    author: row.querySelector('td:nth-child(5)').textContent
-                };
-            });
-
-            // Confirmation modal
-            const confirmationContent = `
-                <h2>Confirm Download</h2>
-                <p>Are you sure you want to download ${books.length} book${books.length > 1 ? 's' : ''}?</p>
-                <div class="uk-overflow-auto">
-                    <table class="uk-table uk-table-divider uk-table-small">
-                        <thead>
-                            <tr>
-                                <th>Title</th>
-                                <th>Author</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${books.map((book) => `
-                                <tr>
-                                    <td>${book.title}</td>
-                                    <td>${book.author}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                <div class="uk-flex uk-flex-between uk-margin-top">
-                    <button id="cancel-download" class="uk-button uk-button-default">Cancel</button>
-                    <button id="confirm-download" class="uk-button uk-button-primary">Download</button>
-                </div>
-            `;
-
-            elements.detailsContainer.innerHTML = confirmationContent;
-
-            document.getElementById('cancel-download').addEventListener('click', modal.close);
-            document.getElementById('confirm-download').addEventListener('click', async () => {
-                await utils.confirmDownload(bookIds);
-            });
-
-            modal.open();
-        },
-
-        async confirmDownload(bookIds) {
-            bookIds.map((bookId) =>
-                utils.fetchJson(`${API_ENDPOINTS.download}?id=${encodeURIComponent(bookId)}`)
-            );
-
-            this.clearAllCheckboxes();
-            modal.close();
-            
-            // Trigger accordion management
-            accordion.handleDownloadButtonClick();
-        },
-
-        clearAllCheckboxes() {
-            selectedBooks.forEach((bookId) => {
-                const checkbox = document.getElementById(`book-${bookId}`);
-                if (checkbox) checkbox.checked = false;
-            });
-
-            const selectAllCheckbox = document.getElementById('select-all-checkbox');
-            if (selectAllCheckbox) selectAllCheckbox.checked = false;
-
-            selectedBooks.clear();
-            utils.updateDownloadSelectedButton();
         }
     };
 
     // Search Functions
     const search = {
         async performSearch(query) {
-            utils.clearAllCheckboxes();
             if (STATE.isSearching) return;
-
+        
             try {
                 STATE.isSearching = true;
                 utils.showLoading(elements.searchLoading);
-
-                if (!elements.searchAccordion.classList.contains('uk-open')) {
-                    utils.showAccordion(elements.resultsSectionAccordion);
-                };
-                
+        
+                // Ensure results section is displayed
+                if (elements.resultsSectionAccordion) {
+                    elements.resultsSectionAccordion.hidden = false;
+                }
+        
+                // Fetch search results
                 const data = await utils.fetchJson(
-                    `${API_ENDPOINTS.search}?${query}`
+                    `${API_ENDPOINTS.search}?query=${encodeURIComponent(query)}`
                 );
-
-                this.displayResults(data);
+        
+                // Display results
+                if (elements.resultsTableBody) {
+                    this.displayResults(data);
+                } else {
+                    console.error('Error: resultsTableBody element is missing in the DOM.');
+                }
             } catch (error) {
+                console.error('Search error:', error);
                 this.handleSearchError(error);
             } finally {
                 STATE.isSearching = false;
                 utils.hideLoading(elements.searchLoading);
             }
         },
-
-        buildQuery() {
-            let queryParams = [];
-
-            if(elements.search.searchInput.value.trim()) {
-                queryParams.push(`query=${encodeURIComponent(elements.search.searchInput.value.trim())}`);
-            }
-
-            if(elements.search.advanced.searchFiltersForm.hasAttribute('hidden')) {
-                //Not advanced search
-                return queryParams.join('&');
-            }
-
-            FILTERS.forEach(filterType => {
-                const inputs = document.querySelectorAll(`[id^="${filterType}-input"]`);
-            
-                inputs.forEach(input => {
-                    const value = input.value.trim();
-                    if (value) {  
-                        queryParams.push(`${filterType}=${encodeURIComponent(value.trim())}`);
-                    }
-                });
-            });
-
-            return queryParams.join('&');
-        },
-
+    
         displayResults(books) {
+            // Clear table and card containers
             elements.resultsTableBody.innerHTML = '';
-
+            const cardContainer = document.getElementById('results-card-container');
+            cardContainer.innerHTML = '';
+        
             if (!books.length) {
                 this.displayNoResults();
                 return;
             }
-
+        
             books.forEach((book, index) => {
+                // Add to table for larger screens
                 const row = this.createBookRow(book, index);
                 elements.resultsTableBody.appendChild(row);
+        
+                // Add to card container for mobile
+                const card = this.createBookCard(book, index);
+                cardContainer.appendChild(card);
             });
         },
-
+        
         displayNoResults() {
-            const row = utils.createElement('tr', {}, [
+            // Handle empty state for both table and cards
+            elements.resultsTableBody.innerHTML = '';
+            const cardContainer = document.getElementById('results-card-container');
+            cardContainer.innerHTML = '';
+        
+            const tableRow = utils.createElement('tr', {}, [
                 utils.createElement('td', {
                     colSpan: '10',
                     textContent: 'No results found.'
-                })
+                }),
             ]);
-            elements.resultsTableBody.appendChild(row);
+            elements.resultsTableBody.appendChild(tableRow);
+        
+            const card = utils.createElement('div', {
+                className: 'bg-white shadow rounded-md p-4 mb-4 text-center text-gray-600'
+            }, 'No results found.');
+            cardContainer.appendChild(card);
         },
-
+        
         createBookRow(book, index) {
-            const checkboxCell = utils.createElement('td', {}, [
-                utils.createElement('input', {
-                    type: 'checkbox',
-                    className: 'uk-checkbox',
-                    id: 'book-' + book.id,
-                    name: 'book-' + book.id,
-                    value: book.id,
-                    onchange: utils.handleCheckboxChange
-                })
-            ]);
-
+            // Table row for larger screens
             return utils.createElement('tr', {}, [
-                checkboxCell,
                 utils.createElement('td', { textContent: index + 1 }),
                 this.createPreviewCell(book.preview),
                 utils.createElement('td', { textContent: book.title || 'N/A' }),
                 utils.createElement('td', { textContent: book.author || 'N/A' }),
                 utils.createElement('td', { textContent: book.publisher || 'N/A' }),
                 utils.createElement('td', { textContent: book.year || 'N/A' }),
-                utils.createElement('td', { textContent: book.language || 'N/A' }),
-                utils.createElement('td', { textContent: book.format || 'N/A' }),
-                utils.createElement('td', { textContent: book.size || 'N/A' }),
                 this.createActionCell(book)
             ]);
         },
-
+        
+        createBookCard(book, index) {
+            // Card for mobile-friendly display
+            return utils.createElement('div', {
+                className: 'bg-white shadow rounded-md p-4 mb-4'
+            }, [
+                utils.createElement('div', { className: 'flex items-start gap-4' }, [
+                    book.preview
+                        ? utils.createElement('img', {
+                              src: book.preview,
+                              alt: 'Book Preview',
+                              className: 'w-16 h-24 object-cover rounded'
+                          })
+                        : utils.createElement('div', { className: 'w-16 h-24 bg-gray-200 rounded' }),
+                    utils.createElement('div', {}, [
+                        utils.createElement('h3', { className: 'font-bold text-lg' }, book.title || 'N/A'),
+                        utils.createElement('p', { className: 'text-gray-600' }, `Author: ${book.author || 'N/A'}`),
+                        utils.createElement('p', { className: 'text-gray-600' }, `Publisher: ${book.publisher || 'N/A'}`),
+                        utils.createElement('p', { className: 'text-gray-600' }, `Year: ${book.year || 'N/A'}`)
+                    ])
+                ]),
+                utils.createElement('div', { className: 'mt-4 flex gap-2' }, [
+                    utils.createElement('button', {
+                        className: 'bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700',
+                        onclick: () => bookDetails.show(book.id)
+                    }, 'Details'),
+                    utils.createElement('button', {
+                        className: 'bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700',
+                        onclick: () => bookDetails.downloadBook(book)
+                    }, 'Download')
+                ])
+            ]);
+        },
+        
         createPreviewCell(previewUrl) {
             if (!previewUrl) {
                 return utils.createElement('td', { textContent: 'N/A' });
             }
-
+        
             const img = utils.createElement('img', {
                 src: previewUrl,
                 alt: 'Book Preview',
                 style: 'max-width: 60px;'
             });
-
+        
             return utils.createElement('td', {}, [img]);
         },
-
+        
         createActionCell(book) {
             const buttonDetails = utils.createElement('button', {
-                className: 'uk-button uk-button-default uk-align-center uk-margin-small uk-width-1-1',
+                className: 'bg-gray-600 text-white px-2 py-1 rounded-md shadow hover:bg-gray-700 focus:ring focus:ring-gray-300',
                 onclick: () => bookDetails.show(book.id)
-            }, [utils.createElement('span', { textContent: 'Details' })]);
+            }, ['Details']);
 
             const downloadButton = utils.createElement('button', {
-                className: 'uk-button uk-button-primary uk-align-center uk-margin-small uk-width-1-1 download-button',
+                className: 'bg-blue-600 text-white px-2 py-1 rounded-md shadow hover:bg-blue-700 focus:ring focus:ring-blue-300',
                 onclick: () => {
                     bookDetails.downloadBook(book);
-                    // Trigger accordion management
-                    accordion.handleDownloadButtonClick();
+                    // Hide results after initiating a download
+                    elements.resultsSectionAccordion.hidden = true;
                 }
-            }, [utils.createElement('span', { textContent: 'Download' })]);
+            }, ['Download']);
 
-            return utils.createElement('td', {}, [buttonDetails, downloadButton]);
+            return utils.createElement('div', { className: 'flex gap-2' }, [buttonDetails, downloadButton]);
         },
 
         handleSearchError(error) {
             console.error('Search error:', error);
-            elements.resultsTableBody.innerHTML = '';
-            const errorRow = utils.createElement('tr', {}, [
-                utils.createElement('td', {
-                    colSpan: '10',
-                    textContent: 'An error occurred while searching. Please try again.'
-                })
-            ]);
-            elements.resultsTableBody.appendChild(errorRow);
+        
+            if (elements.resultsTableBody) {
+                elements.resultsTableBody.innerHTML = '';
+                const errorRow = utils.createElement('tr', {}, [
+                    utils.createElement('td', {
+                        colSpan: '10',
+                        textContent: 'An error occurred while searching. Please try again.'
+                    })
+                ]);
+                elements.resultsTableBody.appendChild(errorRow);
+            } else {
+                console.error('Error: resultsTableBody element is missing in the DOM.');
+            }
         }
     };
 
+        // Add listener for "Hide Results" button
+        elements.hideResultsButton.addEventListener('click', () => {
+            elements.resultsSectionAccordion.hidden = true;
+        });
+        
     // Book Details Functions
     const bookDetails = {
         async show(bookId) {
             if (STATE.isLoadingDetails) return;
-
+    
             try {
                 STATE.isLoadingDetails = true;
-                modal.open();
-                elements.detailsContainer.innerHTML = '<p>Loading details...</p>';
-
+    
+                if (modal.open) {
+                    modal.open();
+                }
+    
+                if (elements.detailsContainer) {
+                    elements.detailsContainer.innerHTML = '<p>Loading details...</p>';
+                }
+    
                 const book = await utils.fetchJson(
                     `${API_ENDPOINTS.info}?id=${encodeURIComponent(bookId)}`
                 );
-
-                modalDetails = book;
+    
+                currentBookDetails = book;
                 this.displayDetails(book);
             } catch (error) {
+                console.error('Details error:', error);
                 this.handleDetailsError(error);
             } finally {
                 STATE.isLoadingDetails = false;
@@ -465,47 +349,38 @@ document.addEventListener('DOMContentLoaded', () => {
 
         displayDetails(book) {
             elements.detailsContainer.innerHTML = this.generateDetailsHTML(book);
-
+            
             // Add event listeners
             document.getElementById('download-button')
-                .addEventListener('click', () => {
-                    this.downloadBook(book);
-                    // Trigger accordion management
-                    accordion.handleDownloadButtonClick();
-                });
+                .addEventListener('click', () => this.downloadBook(book));
             document.getElementById('close-details')
                 .addEventListener('click', modal.close);
         },
 
         generateDetailsHTML(book) {
             return `
-
-                <div class="uk-card uk-card-default uk-child-width-1-2" uk-grid>
-                    <div class="uk-card-media-left uk-cover-container uk-padding">
-                        <img class="uk-height-medium" src="${book.preview || ''}" alt="Book Preview" uk-cover>
-                        <canvas width="299" height="461"></canvas>
+                <div class="bg-white rounded-lg shadow-md p-6 space-y-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-gray-800">${book.title || 'No title available'}</h3>
+                        <p class="text-gray-600"><strong>Author:</strong> ${book.author || 'N/A'}</p>
+                        <p class="text-gray-600"><strong>Publisher:</strong> ${book.publisher || 'N/A'}</p>
+                        <p class="text-gray-600"><strong>Year:</strong> ${book.year || 'N/A'}</p>
+                        <p class="text-gray-600"><strong>Language:</strong> ${book.language || 'N/A'}</p>
+                        <p class="text-gray-600"><strong>Format:</strong> ${book.format || 'N/A'}</p>
+                        <p class="text-gray-600"><strong>Size:</strong> ${book.size || 'N/A'}</p>
                     </div>
-                    <div class="uk-card-body">
-                        <h3>${book.title || 'No title available'}</h3>
-                        <p><strong>Author:</strong> ${book.author || 'N/A'}</p>
-                        <p><strong>Publisher:</strong> ${book.publisher || 'N/A'}</p>
-                        <p><strong>Year:</strong> ${book.year || 'N/A'}</p>
-                        <p><strong>Language:</strong> ${book.language || 'N/A'}</p>
-                        <p><strong>Format:</strong> ${book.format || 'N/A'}</p>
-                        <p><strong>Size:</strong> ${book.size || 'N/A'}</p>
+        
+                    <div class="flex space-x-4">
+                        <button id="download-button" 
+                                class="bg-blue-600 text-white px-4 py-2 rounded-md shadow hover:bg-blue-700 focus:ring focus:ring-blue-300">
+                            Download
+                        </button>
+                        <button id="close-details" 
+                                class="bg-gray-600 text-white px-4 py-2 rounded-md shadow hover:bg-gray-700 focus:ring focus:ring-gray-300">
+                            Close
+                        </button>
                     </div>
-                    
-                    <button id="download-button" class="uk-button uk-button-primary download-button" type="button">Download</button>
-                    <button id="close-details" class="uk-button uk-button-default uk-modal-close" type="button">Close</button>
                 </div>
-                <ul uk-accordion>
-                    <li>
-                        <a class="uk-accordion-title" href>Further Information</a>
-                        <div class="uk-accordion-content">
-                            ${this.generateInfoList(book.info)}
-                        </div>
-                    </li>
-                </ul>
             `;
         },
 
@@ -526,12 +401,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             try {
                 utils.showLoading(elements.searchLoading);
-                await utils.fetchJson(
+                utils.fetchJson(
                     `${API_ENDPOINTS.download}?id=${encodeURIComponent(book.id)}`
-                );
-
-                modal.close();
-                status.fetch();
+                ).then(() => {
+                    modal.close();
+                    status.fetch();
+        
+                    // Hide search results section
+                    if (elements.resultsSectionAccordion) {
+                        elements.resultsSectionAccordion.hidden = true;
+                    }
+                });
             } catch (error) {
                 console.error('Download error:', error);
             } finally {
@@ -552,7 +432,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // Status Functions
     const status = {
         async fetch() {
             try {
@@ -565,255 +444,138 @@ document.addEventListener('DOMContentLoaded', () => {
                 utils.hideLoading(elements.statusLoading);
             }
         },
-
+    
         display(data) {
+            // Clear existing content
             elements.statusTableBody.innerHTML = '';
-
+            elements.statusCardContainer.innerHTML = '';
+    
             // Handle each status type
             Object.entries(data).forEach(([status, booksInStatus]) => {
-                // If the status section has books
                 if (Object.keys(booksInStatus).length > 0) {
-                    // For each book in this status
                     Object.entries(booksInStatus).forEach(([bookId, bookData]) => {
                         this.addStatusRow(status, bookData);
+                        this.addStatusCard(status, bookData);
                     });
                 }
             });
         },
-
+    
         addStatusRow(status, book) {
             if (!book.id || !book.title) return;
-
-            const statusCell = utils.createElement('td', {
-                className: `status-${status.toLowerCase()}`,
-                textContent: status
-            });
-
-            let titleElement;
-            if (book.download_path != null) {
-                titleElement = utils.createElement('a', {
-                    href: `/request/api/localdownload?id=${book.id}`,
-                    target: '_blank',
-                    textContent: book.title || 'N/A'
-                });
-            }
-            else {
-                titleElement = utils.createElement('td', { textContent: book.title || 'N/A' })
-            }
-
+    
             const row = utils.createElement('tr', {}, [
-                statusCell,
+                utils.createElement('td', { textContent: status }),
                 utils.createElement('td', { textContent: book.id }),
-                titleElement,
-                this.createPreviewCell(book.preview)
+                utils.createElement('td', { textContent: book.title }),
+                this.createPreviewCell(book.preview),
             ]);
-
+    
             elements.statusTableBody.appendChild(row);
         },
-
-        createPreviewCell(previewUrl) {
-            const cell = utils.createElement('td');
-
-            if (previewUrl) {
-                const img = utils.createElement('img', {
-                    src: previewUrl,
-                    alt: 'Book Preview',
-                    style: 'max-width: 60px; height: auto;'
-                });
-                cell.appendChild(img);
-            } else {
-                cell.textContent = 'N/A';
-            }
-
-            return cell;
+    
+        addStatusCard(status, book) {
+            if (!book.id || !book.title) return;
+    
+            const card = utils.createElement('div', {
+                className: 'bg-white shadow rounded-md p-4 mb-4',
+            }, [
+                utils.createElement('div', { className: 'flex items-center justify-between' }, [
+                    utils.createElement('h3', { className: 'text-lg font-semibold' }, book.title),
+                    utils.createElement('span', {
+                        className: 'text-sm font-medium text-gray-600',
+                        textContent: status,
+                    }),
+                ]),
+                utils.createElement('p', { className: 'text-sm text-gray-600 mt-2' }, `ID: ${book.id}`),
+                book.preview
+                    ? utils.createElement('img', {
+                        src: book.preview,
+                        alt: 'Book Preview',
+                        className: 'w-16 h-16 mt-2',
+                    })
+                    : utils.createElement('p', { className: 'text-sm text-gray-600 mt-2' }, 'No preview available'),
+            ]);
+    
+            elements.statusCardContainer.appendChild(card);
         },
-
+    
+        createPreviewCell(previewUrl) {
+            if (!previewUrl) {
+                return utils.createElement('td', { textContent: 'N/A' });
+            }
+    
+            const img = utils.createElement('img', {
+                src: previewUrl,
+                alt: 'Book Preview',
+                className: 'w-12 h-12',
+            });
+    
+            return utils.createElement('td', {}, [img]);
+        },
+    
         handleError(error) {
             console.error('Status error:', error);
-            elements.statusTableBody.innerHTML = '';
-
-            const errorRow = utils.createElement('tr', {}, [
-                utils.createElement('td', {
-                    colSpan: '4',
-                    className: 'error-message',
-                    textContent: 'Error loading status. Will retry automatically.'
-                })
-            ]);
-
-            elements.statusTableBody.appendChild(errorRow);
-        }
+    
+            if (elements.statusTableBody) {
+                elements.statusTableBody.innerHTML = '';
+                const errorRow = utils.createElement('tr', {}, [
+                    utils.createElement('td', {
+                        colSpan: '4',
+                        textContent: 'Error loading status. Will retry automatically.',
+                    }),
+                ]);
+                elements.statusTableBody.appendChild(errorRow);
+            }
+    
+            if (elements.statusCardContainer) {
+                elements.statusCardContainer.innerHTML = '';
+                const errorCard = utils.createElement('div', {
+                    className: 'bg-red-100 text-red-600 p-4 rounded-md',
+                    textContent: 'Error loading status. Will retry automatically.',
+                });
+                elements.statusCardContainer.appendChild(errorCard);
+            }
+        },
     };
 
     // Modal Functions
     const modal = {
         open() {
-            elements.modalOverlay.classList.add('active');
-        },
-
-        close() {
-            elements.modalOverlay.classList.remove('active');
-            modalDetails = null;
-        }
-    };
-
-    // Theme Management
-    const theme = {
-        STORAGE_KEY: 'preferred-theme',
-        
-        init() {
-            this.loadTheme();
-            this.setupListeners();
-        },
-
-        loadTheme() {
-            const savedTheme = localStorage.getItem(this.STORAGE_KEY) || 'auto';
-            this.applyThemePreference(savedTheme);
-            this.updateButtonText(savedTheme);
-        },
-
-        applyThemePreference(preference) {
-            if (preference === 'auto') {
-                const isDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+            if (elements.modalOverlay) {
+                elements.modalOverlay.classList.remove('hidden');
             } else {
-                document.documentElement.setAttribute('data-theme', preference);
+                console.error('Error: modalOverlay element is missing in the DOM.');
             }
         },
-
-        setupListeners() {
-            // Listen for system theme changes
-            const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-            darkModeMediaQuery.addEventListener('change', (e) => {
-                if (localStorage.getItem(this.STORAGE_KEY) === 'auto') {
-                    document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
-                }
-            });
-            
-            // Theme selection listeners
-            const themeLinks = document.querySelectorAll('.uk-dropdown-nav a[data-theme]');
-            themeLinks.forEach(link => {
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const selectedTheme = e.target.getAttribute('data-theme');
-                    localStorage.setItem(this.STORAGE_KEY, selectedTheme);
-                    this.applyThemePreference(selectedTheme);
-                    this.updateButtonText(selectedTheme);
-                });
-            });
-        },
-
-        updateButtonText(currentTheme) {
-            const themeText = currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1);
-            const themeTextElement = document.getElementById('theme-text');
-            if (themeTextElement) {
-                themeTextElement.textContent = themeText;
+        close() {
+            if (elements.modalOverlay) {
+                elements.modalOverlay.classList.add('hidden');
+            } else {
+                console.error('Error: modalOverlay element is missing in the DOM.');
             }
-        }
-    };
-
-    // Debug Functions
-    const debug = {
-        init() {
-            if (!elements.debug.form) return;
-            
-            elements.debug.form.addEventListener('submit', (e) => {
-                e.preventDefault(); // Prevent default form submission
-                
-                if (elements.debug.button.disabled) {
-                    return; // Prevent multiple submissions
-                }
-                
-                // Disable button and show spinner
-                elements.debug.spinner.classList.remove('uk-hidden');
-                elements.debug.button.disabled = true;
-                
-                // Use fetch to make the request
-                fetch(elements.debug.form.action)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Debug request failed');
-                        }
-                        // Store content disposition before returning blob
-                        const contentDisposition = response.headers.get('Content-Disposition');
-                        return response.blob().then(blob => {
-                            return { blob, contentDisposition, url: response.url };
-                        });
-                    })
-                    .then(data => {
-                        // Create and click a download link
-                        const url = URL.createObjectURL(data.blob);
-                        const a = document.createElement('a');
-                        a.style.display = 'none';
-                        a.href = url;
-                        
-                        // Extract filename from Content-Disposition header, URL, or use default
-                        let filename;
-                        if (data.contentDisposition) {
-                            const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
-                            const matches = filenameRegex.exec(data.contentDisposition);
-                            if (matches && matches[1]) {
-                                filename = matches[1].replace(/['"]/g, '');
-                            }
-                        }
-                        
-                        if (!filename) {
-                            // Extract from URL if header is not available
-                            const urlParts = data.url.split('/');
-                            filename = urlParts[urlParts.length - 1];
-                        }
-                        
-                        a.download = filename || "cwa-book-downloader-debug.zip";
-                        document.body.appendChild(a);
-                        a.click();
-                        
-                        // Clean up
-                        setTimeout(() => {
-                            URL.revokeObjectURL(url);
-                            document.body.removeChild(a);
-                            
-                            // Only reset UI after download starts
-                            elements.debug.spinner.classList.add('uk-hidden');
-                            elements.debug.button.disabled = false;
-                        }, 100);
-                    })
-                    .catch(error => {
-                        console.error('Debug download error:', error);
-                        
-                        // Reset UI on error
-                        elements.debug.spinner.classList.add('uk-hidden');
-                        elements.debug.button.disabled = false;
-                        
-                        // Show error notification
-                        UIkit.notification({
-                            message: 'Error generating debug file. Please try again.',
-                            status: 'danger',
-                            pos: 'top-center',
-                            timeout: 5000
-                        });
-                    });
-            });
+    
+            if (elements.detailsContainer) {
+                elements.detailsContainer.innerHTML = ''; // Clear content when closed
+            } else {
+                console.error('Error: detailsContainer element is missing in the DOM.');
+            }
         }
     };
 
     // Event Listeners
     function setupEventListeners() {
         // Search events
-        elements.search.searchButton.addEventListener('click', () => {
-            const query = search.buildQuery();
-            if(query) search.performSearch(query);
+        elements.searchButton.addEventListener('click', () => {
+            const query = elements.searchInput.value.trim();
+            if (query) search.performSearch(query);
         });
 
-        elements.search.advanced.advSearchButton.addEventListener('click', () => {
-            const query = search.buildQuery();
-            if(query) search.performSearch(query);
-        });
-        
-        elements.search.searchInput.addEventListener('keydown', (e) => {
+        elements.searchInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-
-                const query = search.buildQuery();
-                if(query) search.performSearch(query);
+                const query = elements.searchInput.value.trim();
+                if (query) search.performSearch(query);
             }
         });
 
@@ -830,48 +592,57 @@ document.addEventListener('DOMContentLoaded', () => {
                 modal.close();
             }
         });
-        
-        // Download selected books
-        elements.downloadSelectedButton.addEventListener('click', utils.handleDownloadSelected);
-
-        // Check/uncheck all book checkboxes
-        elements.selectAllCheckbox.addEventListener('change', (event) => {
-            const isChecked = event.target.checked;
-
-            document.querySelectorAll('.uk-checkbox').forEach((checkbox) => {
-                if (checkbox !== elements.selectAllCheckbox) {
-                    checkbox.checked = isChecked;
-                    if (isChecked) {
-                        selectedBooks.add(checkbox.value);
-                    } else {
-                        selectedBooks.delete(checkbox.value);
-                    }
-                }
-            });
-            utils.updateDownloadSelectedButton();
-        });
-
-        function setupSorting() {
-            const headers = document.querySelectorAll('#results-table thead th[data-sort]');
-            headers.forEach((header) => {
-                let sortOrder = 'asc';
-                header.addEventListener('click', () => {
-                    const allHeaders = Array.from(document.querySelectorAll('#results-table thead th'));
-                    const columnIndex = allHeaders.indexOf(header);
-                    utils.sortResultsTable(columnIndex, sortOrder);
-                    sortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
-                });
-            });
-        }
-
-        setupSorting();
     }
+
+    // Dark Mode Logic
+    const darkMode = {
+        init() {
+            // Check localStorage for saved preference
+            const savedMode = localStorage.getItem('darkMode');
+            if (savedMode === 'dark') {
+                this.enable();
+            } else {
+                // Default to light mode if no preference or preference is 'light'
+                this.disable(); 
+            }
+            this.addToggleListener();
+        },
+
+        enable() {
+            elements.html.classList.add('dark');
+            elements.sunIcon.classList.add('hidden');
+            elements.moonIcon.classList.remove('hidden');
+            localStorage.setItem('darkMode', 'dark');
+        },
+
+        disable() {
+            elements.html.classList.remove('dark');
+            elements.sunIcon.classList.remove('hidden');
+            elements.moonIcon.classList.add('hidden');
+            localStorage.setItem('darkMode', 'light');
+        },
+
+        toggle() {
+            if (elements.html.classList.contains('dark')) {
+                this.disable();
+            } else {
+                this.enable();
+            }
+        },
+
+        addToggleListener() {
+            if (elements.darkModeToggle) {
+                elements.darkModeToggle.addEventListener('click', () => this.toggle());
+            } else {
+                console.error('Dark mode toggle button not found.');
+            }
+        }
+    };
 
     // Initialize
     function init() {
         setupEventListeners();
-        theme.init();  // Initialize theme management
-        debug.init();  // Initialize debug functionality
+        darkMode.init(); // Initialize dark mode
         status.fetch();
         setInterval(() => status.fetch(), REFRESH_INTERVAL);
     }

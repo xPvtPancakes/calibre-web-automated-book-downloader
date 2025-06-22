@@ -1,215 +1,160 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class=""> <!-- Add class here for JS to target -->
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Calibre Web Book Downloader Application">
-    <meta name="theme-color" content="#333333">
-    <title>Calibre Web Book Downloader</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <!-- Add favicon -->
-    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
-    <!-- UIkit CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.21.16/dist/css/uikit.min.css" />
-
-    <!-- UIkit JS -->
-    <script src="https://cdn.jsdelivr.net/npm/uikit@3.21.16/dist/js/uikit.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/uikit@3.21.16/dist/js/uikit-icons.min.js"></script>
+    <title>Fetchly</title>
+    <link rel="icon" href="../static/media/favicon.ico" type="image/x-icon">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Add basic Tailwind dark mode configuration
+        tailwind.config = {
+          darkMode: 'class', // Enable class-based dark mode
+          theme: {
+            extend: {}
+          }
+        }
+      </script>
+    <style>
+        /* Basic styles for toggle switch if needed, or rely on Tailwind */
+        /* Add specific dark mode overrides if Tailwind classes aren't enough */
+        .dark body {
+            /* Example: Ensure body background/text is set */
+        }
+        .dark header {
+            /* Example: Dark header styles */
+        }
+        /* Add more specific dark styles as needed */
+    </style>
 </head>
-<body>
-    <header>
-        <div class="uk-flex uk-flex-between uk-flex-middle">
-            <h1 class="uk-heading-medium" style="color: white;">Book Search & Download</h1>
-            <div class="uk-margin-right">
-                {% if debug %}
-                <form action="/debug" method="get" style="display: inline;" id="debug-form">
-                    <button class="uk-button uk-button-danger uk-margin-small-right" id="debug-button" type="submit">
-                        DEBUG <span uk-spinner="ratio: 0.8" class="uk-hidden" id="debug-spinner"></span>
-                    </button>
-                </form>
-                {% endif %}
-                <button class="uk-button uk-button-default" type="button" id="theme-toggle">
-                    <span uk-icon="icon: paint-bucket"></span>
-                    <span id="theme-text">Theme</span>
-                </button>
-                <div uk-dropdown="mode: click">
-                    <ul class="uk-nav uk-dropdown-nav">
-                        <li><a href="#" data-theme="light">Light</a></li>
-                        <li><a href="#" data-theme="dark">Dark</a></li>
-                        <li><a href="#" data-theme="auto">Auto (System)</a></li>
-                    </ul>
-                </div>
+<body class="bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100 font-sans antialiased transition-colors duration-300">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white py-2 shadow dark:bg-gray-800">
+        <div class="container mx-auto px-4 flex items-center justify-between relative"> 
+            <div class="w-10"></div> 
+            <div class="flex-1 flex justify-center">
+                 <img src="../static/media/logo.svg" alt="Fetchly Logo" class="h-16">
             </div>
+            <button id="dark-mode-toggle" class="absolute right-4 top-1/2 transform -translate-y-1/2 p-2 rounded-md text-white hover:bg-blue-700 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-blue-600 dark:focus:ring-offset-gray-800 focus:ring-white">
+                <svg id="sun-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 block" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> {/* Ensure block display */}
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <svg id="moon-icon" xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"> {/* Ensure hidden initially */}
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                </svg>
+            </button>            
         </div>
     </header>
 
-    <main>
-        <div class="uk-container">
-            <!-- Search Section -->
-            <section class="uk-section-xxsmall uk-padding">
-                <div class="uk-container uk-width-expand">
-                    <form class="uk-search uk-search-default uk-width-expand">
-                        <input class="uk-search-input" type="search" placeholder="Search by ISBN, title, author..." aria-label="Search books" id="search-input">
-                        <button class="uk-search-icon-flip" uk-search-icon id="search-button" type="button"></button>
-                    </form>
-                    <button class="uk-button uk-button-default uk-float-right" uk-toggle="target: #search-filters" type="button">Advanced Search</button>
-                    <form hidden id="search-filters" class="uk-search uk-search-default uk-inline uk-width-expand uk-flex uk-flex-wrap">
-                        <div class="search-filter">
-                            <label for="isbn-input">ISBN</label>
-                            <div class="uk-flex uk-flex-wrap">
-                                <input class="uk-search-input uk-width-4-5" type="search" placeholder="ISBN..." aria-label="Search by ISBN" id="isbn-input">
-                            </div>
-                        </div>
-                        <div class="search-filter">
-                            <label for="author-input">Author</label>
-                            <div class="uk-flex uk-flex-wrap">
-                                <input class="uk-search-input uk-width-4-5" type="search" placeholder="Author..." aria-label="Search by author" id="author-input">
-                            </div>
-                        </div>
-                        <div class="search-filter">
-                            <label for="title-input">Title</label>
-                            <div class="uk-flex uk-flex-wrap">
-                                <input class="uk-search-input uk-width-4-5" type="search" placeholder="Title" aria-label="Search by title" id="title-input">
-                            </div>
-                        </div>
-                        <div class="search-filter">
-                            <label for="lang-input">Language</label>
-                            <div class="uk-flex uk-flex-wrap">
-                                <select class="uk-select uk-width-4-5" id="lang-input">
-                                    <option value="all">All</option>
-                                    {% for lang in book_languages %}
-                                        <option value="{{ lang.code }}"
-                                            {% if lang.code == default_language[0] %}selected{% endif %}>
-                                            {{ lang.language }}
-                                        </option>
-                                    {% endfor %}
-                                </select>
-                            </div>
-                        </div>
-                        <div class="search-filter">
-                            <label for="sort-input">Sort</label>
-                            <div class="uk-flex uk-flex-wrap">
-                                <select class="uk-select uk-width-4-5" id="sort-input">
-                                    <option value="">Most relevant</option>
-                                    <option value="newest">Newest (publication year)</option>
-                                    <option value="oldest">Oldest (publication year)</option>
-                                    <option value="largest">Largest (filesize)</option>
-                                    <option value="smallest">Smallest (filesize)</option>
-                                    <option value="newest_added">Newest (open sourced)</option>
-                                    <option value="oldest_added">Oldest (open sourced)</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="search-filter">
-                            <label for="content-input">Content</label>
-                            <div class="uk-flex uk-flex-wrap">
-                                <select class="uk-select uk-width-4-5" id="content-input">
-                                    <option value="">All</option>
-                                    <option value="book_nonfiction">Book (non-fiction)</option>
-                                    <option value="book_fiction">Book (fiction)</option>
-                                    <option value="book_unknown">Book (unkown)</option>
-                                    <option value="magazine">Magazine</option>
-                                    <option value="book_comic">Comic Book</option>
-                                    <option value="standards_document">Standards document</option>
-                                    <option value="other">Other</option>
-                                    <option value="musical_score">Musical score</option>
-                                    <option value="audiobook">Audiobook</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="uk-flex uk-margin-auto-top uk-margin-auto-left">
-                            <button class="uk-button uk-button-default uk-margin-small-top" id="adv-search-button" type="button">Search</button>
-                        </div>
-                    </form>
-                </div>
-            </section>
-
-            <!-- Results Section -->
-            <ul uk-accordion="animation: false" id="results-section-accordion">
-                <li id="search-accordion">
-                <a class="uk-accordion-title" href><h1 class="uk-heading-xsmall">Search Results</h1></a>
-                <div class="uk-accordion-content">
-                    <div id="search-loading" class="uk-flex uk-flex-center" role="status" hidden>
-                        <div uk-spinner="ratio: 2"></div>
-                        <span>Loading...</span>
-                    </div>
-                    <div class="results-content">
-                    <button class="uk-button uk-button-primary uk-margin-small" id="download-selected-button" disabled>Download Selected</button>
-                        <div class="uk-overflow-auto">
-                            <table id="results-table" class="uk-table uk-table-hover uk-table-divider" role="grid">
-                                <thead>
-                                    <tr>
-                                        <th>
-                                            <input type="checkbox" id="select-all-checkbox" class="uk-checkbox" />
-                                        </th>
-                                        <th scope="col" data-sort="index"># <span class="sort-icon" uk-icon></span></th>
-                                        <th scope="col">Preview</th>
-                                        <th scope="col" data-sort="title">Title <span class="sort-icon" uk-icon></span></th>
-                                        <th scope="col" data-sort="author">Author <span class="sort-icon" uk-icon></span></th>
-                                        <th scope="col" data-sort="publisher">Publisher <span class="sort-icon" uk-icon></span></th>
-                                        <th scope="col" data-sort="year">Year <span class="sort-icon" uk-icon></span></th>
-                                        <th scope="col" data-sort="language">Language <span class="sort-icon" uk-icon></span></th>
-                                        <th scope="col" data-sort="format">Format <span class="sort-icon" uk-icon></span></th>
-                                        <th scope="col" data-sort="size">Size <span class="sort-icon" uk-icon></span></th>
-                                        <th scope="col">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <!-- Search results will be injected here -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                </li>
-            </ul>
-
-            <!-- Modal -->
-            <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true">
-                <div class="details-container" id="details-container">
-                    <!-- Details will be dynamically injected here -->
-                </div>
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6 space-y-6">
+        <!-- Search Section -->
+        <section>
+            <div class="flex items-center gap-2">
+                <input 
+                    id="search-input" 
+                    type="text" 
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring focus:ring-blue-300 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100 dark:placeholder-gray-400" 
+                    placeholder="Search for a book..." 
+                />
+                <button 
+                    id="search-button" 
+                    class="bg-blue-600 text-white px-4 py-2 rounded-md shadow hover:bg-blue-700 focus:ring focus:ring-blue-300 dark:bg-blue-500 dark:hover:bg-blue-600"
+                >
+                    Search
+                </button>
             </div>
+            <p id="search-loading" class="text-blue-600 dark:text-blue-400 mt-2 hidden">Searching...</p>
+        </section>
 
-            <!-- Status Section -->
-            <ul uk-accordion="animation: false" id="status-section">
-                <li id="search-accordion">
-                <a class="uk-accordion-title" href><h1 class="uk-heading-xsmall">Download Status</h1></a>
-                <div class="uk-accordion-content">
-                    <div id="status-loading" class="uk-flex uk-flex-center" role="status" hidden>
-                        <div uk-spinner="ratio: 2"></div>
-                        <span>Loading...</span>
-                    </div>
-                    <div class="status-content">
-                        <div class="uk-overflow-auto">
-                            <table id="status-table" class="uk-table uk-table-hover uk-table-divider" role="grid">
-                                <thead>
-                                    <tr>
-                                        <th scope="col">Status</th>
-                                        <th scope="col">Book ID</th>
-                                        <th scope="col">Title</th>
-                                        <th scope="col">Preview</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <!-- Search results will be injected here -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                </li>
-            </ul>
-        </div>
+        <!-- Results Section -->
+        <section id="results-section-accordion" hidden>
+            <div class="flex justify-between items-center">
+                <h2 id="results-heading" class="text-lg font-semibold dark:text-gray-200">Search Results</h2>
+                <button 
+                    id="hide-results-button" 
+                    class="bg-gray-400 text-white px-3 py-2 rounded-md shadow hover:bg-gray-500 focus:ring focus:ring-gray-300 dark:bg-gray-600 dark:hover:bg-gray-700"
+                >
+                    Hide Results
+                </button>
+            </div>
+            <!-- Table for larger screens -->
+            <div class="hidden sm:block overflow-x-auto bg-white shadow rounded-md mt-4 dark:bg-gray-800">
+                <table class="w-full table-auto border-collapse">
+                    <thead class="bg-gray-200 text-left dark:bg-gray-700 dark:text-gray-300">
+                        <tr>
+                            <th class="px-4 py-2">#</th>
+                            <th class="px-4 py-2">Preview</th>
+                            <th class="px-4 py-2">Title</th>
+                            <th class="px-4 py-2">Author</th>
+                            <th class="px-4 py-2">Publisher</th>
+                            <th class="px-4 py-2">Year</th>
+                            <th class="px-4 py-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-table-body" class="divide-y divide-gray-200 dark:divide-gray-600">
+                        <!-- Rows dynamically injected here -->
+                    </tbody>
+                </table>
+            </div>
+            <!-- Card layout for mobile -->
+            <div class="block sm:hidden dark:text-gray-300" id="results-card-container">
+                <!-- Cards dynamically injected here -->
+            </div>
+        </section>
+
+        <!-- Status Section -->
+<!-- Status Section -->
+<section id="downloads-section">
+    <h2 class="text-lg font-semibold mb-4 dark:text-gray-200">Download Status</h2>
+    <p id="status-loading" class="text-blue-600 dark:text-blue-400 hidden mb-2">Loading status...</p>
+    <!-- Table for larger screens -->
+    <div class="hidden sm:block overflow-x-auto bg-white shadow rounded-md dark:bg-gray-800">
+        <table class="w-full table-auto border-collapse">
+            <thead class="bg-gray-200 text-left dark:bg-gray-700 dark:text-gray-300">
+                <tr>
+                    <th class="px-4 py-2">Status</th>
+                    <th class="px-4 py-2">ID</th>
+                    <th class="px-4 py-2">Title</th>
+                    <th class="px-4 py-2">Preview</th>
+                </tr>
+            </thead>
+            <tbody id="status-table-body" class="divide-y divide-gray-200 dark:divide-gray-600">
+                <!-- Rows dynamically injected here -->
+            </tbody>
+        </table>
+    </div>
+    <!-- Card layout for mobile -->
+    <div class="block sm:hidden dark:text-gray-300" id="status-card-container">
+        <!-- Cards dynamically injected here -->
+    </div>
+</section>
     </main>
 
-    <footer>
-        <h1 class="uk-heading-xxsmall" style="color: white;">Calibre Web Book Downloader</h1>
-        <a href="https://github.com/calibrain/calibre-web-automated-book-downloader" class="uk-icon-link" uk-icon="icon:github; ratio: 2"></a>
-    </footer>
+    <!-- Modal -->
+    <div 
+    id="modal-overlay" 
+    class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50"
+>
+    <div class="bg-white p-6 rounded-md shadow-md w-full max-w-md dark:bg-gray-800 dark:text-gray-200">
+        <div id="details-container" class="space-y-4">
+            <!-- Details content dynamically injected here -->
+        </div>
+    </div>
+</div>
 
-    <!-- Scripts -->
-    <script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+<!-- Floating Scroll Button -->
+<button 
+    id="scroll-toggle-button" 
+    class="fixed bottom-4 right-4 z-50 p-3 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 focus:ring focus:ring-blue-300 hidden sm:block dark:bg-blue-500 dark:hover:bg-blue-600"
+    aria-label="Scroll"
+>
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M10 18a1 1 0 01-.707-.293l-4-4a1 1 0 111.414-1.414L9 15.586V4a1 1 0 112 0v11.586l2.293-2.293a1 1 0 111.414 1.414l-4 4A1 1 0 0110 18z" clip-rule="evenodd" />
+    </svg>
+</button>
+    <!-- JavaScript -->
+    <script src="../static/js/main.js" defer></script> <!-- Use relative path -->
 </body>
 </html>
