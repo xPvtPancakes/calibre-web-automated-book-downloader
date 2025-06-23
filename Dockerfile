@@ -96,8 +96,7 @@ EXPOSE ${FLASK_PORT}
 
 # Add healthcheck for container status
 # This will run as root initially, but check localhost which should work if the app binds correctly.
-HEALTHCHECK --interval=60s --timeout=60s --start-period=60s --retries=3 \
-    CMD pyrequests http://localhost:${FLASK_PORT}/request/api/status || exit 1
+HEALTHCHECK NONE
 
 # Use dumb-init as the entrypoint to handle signals properly
 ENTRYPOINT ["/usr/bin/dumb-init", "--"]
