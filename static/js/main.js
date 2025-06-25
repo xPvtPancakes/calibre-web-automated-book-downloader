@@ -599,7 +599,7 @@ document.addEventListener('DOMContentLoaded', () => {
         init() {
             // Check localStorage for saved preference
             const savedMode = localStorage.getItem('darkMode');
-            if (savedMode === 'dark') {
+            if (savedMode === 'dark'|| savedMode === null) {
                 this.enable();
             } else {
                 // Default to light mode if no preference or preference is 'light'
