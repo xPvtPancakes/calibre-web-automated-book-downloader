@@ -6,7 +6,7 @@ from datetime import datetime
 from env import MAX_RETRY, DEFAULT_SLEEP, DEBUG, LOG_DIR
 from logger import setup_logger
 
-FLARESOLVERR_URL = "http://localhost:8191"  # Adjust if running remotely
+FLARESOLVERR_URL = "http://flaresolverr:8191"  # Adjust if running remotely
 
 logger = setup_logger(__name__)
 LOCKED = threading.Lock()
