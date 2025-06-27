@@ -16,15 +16,21 @@ TENTATIVE_CURRENT_URL = None
 
 def check_flaresolverr_available(timeout=5):
     try:
-        response = requests.get(f"{FLARESOLVERR_URL}/v1", timeout=timeout)
+        test_payload = {
+            "cmd": "request.get",
+            "url": "https://httpbin.org/html",
+            "maxTimeout": 10000
+        }
+        response = requests.post(f"{FLARESOLVERR_URL}/v1", json=test_payload, timeout=timeout)
         if response.status_code == 200 and response.json().get("status") == "ok":
             logger.info("FlareSolverr is available.")
             return True
         else:
-            logger.error("FlareSolverr responded, but with an unexpected status.")
+            logger.error("FlareSolverr responded, but with an unexpected result.")
     except requests.exceptions.RequestException as e:
         logger.error(f"Could not connect to FlareSolverr: {e}")
     return False
+
 
 def _request_flaresolverr(url, max_retries=MAX_RETRY, timeout=60):
     session = requests.Session()
