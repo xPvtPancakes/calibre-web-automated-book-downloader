@@ -1,12 +1,13 @@
 import time
 import requests
 import threading
+import os
 from urllib.parse import urlparse
 from datetime import datetime
 from env import MAX_RETRY, DEFAULT_SLEEP, DEBUG, LOG_DIR
 from logger import setup_logger
 
-FLARESOLVERR_URL = "http://flaresolverr:8191"  # Adjust if running remotely
+FLARESOLVERR_URL = os.getenv("FLARESOLVERR_URL", "http://flaresolverr:8191")
 
 logger = setup_logger(__name__)
 LOCKED = threading.Lock()
