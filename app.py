@@ -13,7 +13,7 @@ import typing
 
 from logger import setup_logger
 from config import _SUPPORTED_BOOK_LANGUAGE, BOOK_LANGUAGE
-from env import FLASK_HOST, FLASK_PORT, APP_ENV, CWA_DB_PATH, DEBUG
+from env import FLASK_HOST, FLASK_PORT, APP_ENV, CWA_DB_PATH, DEBUG, USING_EXTERNAL_BYPASSER, BUILD_VERSION, RELEASE_VERSION
 import backend
 
 from models import SearchFilters
@@ -103,7 +103,16 @@ def index() -> str:
     """
     Render main page with search and status table.
     """
-    return render_template('index.html', book_languages=_SUPPORTED_BOOK_LANGUAGE, default_language=BOOK_LANGUAGE, debug=DEBUG)
+    return render_template('index.html', 
+                           book_languages=_SUPPORTED_BOOK_LANGUAGE, 
+                           default_language=BOOK_LANGUAGE, 
+                           debug=DEBUG,
+                           build_version=BUILD_VERSION,
+                           release_version=RELEASE_VERSION,
+                           app_env=APP_ENV
+                           )
+
+ 
 
 @app.route('/favico<path:_>')
 @app.route('/request/favico<path:_>')
@@ -117,7 +126,10 @@ from typing import Union, Tuple
 if DEBUG:
     import subprocess
     import time
-    from cloudflare_bypasser import _reset_driver as STOP_GUI
+    if USING_EXTERNAL_BYPASSER:
+        STOP_GUI = lambda: None  # No-op for external bypasser
+    else:
+        from cloudflare_bypasser import _reset_driver as STOP_GUI
     @app.route('/debug', methods=['GET'])
     @login_required
     def debug() -> Union[Response, Tuple[Response, int]]:
@@ -153,6 +165,15 @@ if DEBUG:
             logger.error_trace(f"Debug endpoint error: {e}")
             return jsonify({"error": str(e)}), 500
 
+if DEBUG:
+    @app.route('/api/restart', methods=['GET'])
+    @login_required
+    def restart() -> Union[Response, Tuple[Response, int]]:
+        """
+        Restart the application
+        """
+        os._exit(0)
+
 @app.route('/api/search', methods=['GET'])
 @login_required
 def api_search() -> Union[Response, Tuple[Response, int]]:
@@ -167,6 +188,7 @@ def api_search() -> Union[Response, Tuple[Response, int]]:
         lang (str): Book Language
         sort (str): Order to sort results
         content (str): Content type of book
+        format (str): File format filter (pdf, epub, mobi, azw3, fb2, djvu, cbz, cbr)
 
     Returns:
         flask.Response: JSON array of matching books or error response.
@@ -180,6 +202,7 @@ def api_search() -> Union[Response, Tuple[Response, int]]:
         lang = request.args.getlist('lang'),
         sort = request.args.get('sort'),
         content = request.args.getlist('content'),
+        format = request.args.getlist('format'),
     )
 
     if not query and not any(vars(filters).values()):
@@ -234,9 +257,10 @@ def api_download() -> Union[Response, Tuple[Response, int]]:
         return jsonify({"error": "No book ID provided"}), 400
 
     try:
-        success = backend.queue_book(book_id)
+        priority = int(request.args.get('priority', 0))
+        success = backend.queue_book(book_id, priority)
         if success:
-            return jsonify({"status": "queued"})
+            return jsonify({"status": "queued", "priority": priority})
         return jsonify({"error": "Failed to queue book"}), 500
     except Exception as e:
         logger.error_trace(f"Download error: {e}")
@@ -295,6 +319,142 @@ def api_local_download() -> Union[Response, Tuple[Response, int]]:
         logger.error_trace(f"Local download error: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/download/<book_id>/cancel', methods=['DELETE'])
+@login_required
+def api_cancel_download(book_id: str) -> Union[Response, Tuple[Response, int]]:
+    """
+    Cancel a download.
+
+    Path Parameters:
+        book_id (str): Book identifier to cancel
+
+    Returns:
+        flask.Response: JSON status indicating success or failure.
+    """
+    try:
+        success = backend.cancel_download(book_id)
+        if success:
+            return jsonify({"status": "cancelled", "book_id": book_id})
+        return jsonify({"error": "Failed to cancel download or book not found"}), 404
+    except Exception as e:
+        logger.error_trace(f"Cancel download error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/queue/<book_id>/priority', methods=['PUT'])
+@login_required
+def api_set_priority(book_id: str) -> Union[Response, Tuple[Response, int]]:
+    """
+    Set priority for a queued book.
+
+    Path Parameters:
+        book_id (str): Book identifier
+
+    Request Body:
+        priority (int): New priority level (lower number = higher priority)
+
+    Returns:
+        flask.Response: JSON status indicating success or failure.
+    """
+    try:
+        data = request.get_json()
+        if not data or 'priority' not in data:
+            return jsonify({"error": "Priority not provided"}), 400
+            
+        priority = int(data['priority'])
+        success = backend.set_book_priority(book_id, priority)
+        
+        if success:
+            return jsonify({"status": "updated", "book_id": book_id, "priority": priority})
+        return jsonify({"error": "Failed to update priority or book not found"}), 404
+    except ValueError:
+        return jsonify({"error": "Invalid priority value"}), 400
+    except Exception as e:
+        logger.error_trace(f"Set priority error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/queue/reorder', methods=['POST'])
+@login_required
+def api_reorder_queue() -> Union[Response, Tuple[Response, int]]:
+    """
+    Bulk reorder queue by setting new priorities.
+
+    Request Body:
+        book_priorities (dict): Mapping of book_id to new priority
+
+    Returns:
+        flask.Response: JSON status indicating success or failure.
+    """
+    try:
+        data = request.get_json()
+        if not data or 'book_priorities' not in data:
+            return jsonify({"error": "book_priorities not provided"}), 400
+            
+        book_priorities = data['book_priorities']
+        if not isinstance(book_priorities, dict):
+            return jsonify({"error": "book_priorities must be a dictionary"}), 400
+            
+        # Validate all priorities are integers
+        for book_id, priority in book_priorities.items():
+            if not isinstance(priority, int):
+                return jsonify({"error": f"Invalid priority for book {book_id}"}), 400
+                
+        success = backend.reorder_queue(book_priorities)
+        
+        if success:
+            return jsonify({"status": "reordered", "updated_count": len(book_priorities)})
+        return jsonify({"error": "Failed to reorder queue"}), 500
+    except Exception as e:
+        logger.error_trace(f"Reorder queue error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/queue/order', methods=['GET'])
+@login_required
+def api_queue_order() -> Union[Response, Tuple[Response, int]]:
+    """
+    Get current queue order for display.
+
+    Returns:
+        flask.Response: JSON array of queued books with their order and priorities.
+    """
+    try:
+        queue_order = backend.get_queue_order()
+        return jsonify({"queue": queue_order})
+    except Exception as e:
+        logger.error_trace(f"Queue order error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/downloads/active', methods=['GET'])
+@login_required
+def api_active_downloads() -> Union[Response, Tuple[Response, int]]:
+    """
+    Get list of currently active downloads.
+
+    Returns:
+        flask.Response: JSON array of active download book IDs.
+    """
+    try:
+        active_downloads = backend.get_active_downloads()
+        return jsonify({"active_downloads": active_downloads})
+    except Exception as e:
+        logger.error_trace(f"Active downloads error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/queue/clear', methods=['DELETE'])
+@login_required
+def api_clear_completed() -> Union[Response, Tuple[Response, int]]:
+    """
+    Clear all completed, errored, or cancelled books from tracking.
+
+    Returns:
+        flask.Response: JSON with count of removed books.
+    """
+    try:
+        removed_count = backend.clear_completed()
+        return jsonify({"status": "cleared", "removed_count": removed_count})
+    except Exception as e:
+        logger.error_trace(f"Clear completed error: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.errorhandler(404)
 def not_found_error(error: Exception) -> Union[Response, Tuple[Response, int]]:
     """
@@ -346,7 +506,10 @@ def authenticate() -> bool:
 
     # Validate credentials against database
     try:
-        conn = sqlite3.connect(CWA_DB_PATH)
+        # Open database in true read-only mode to avoid journal/WAL writes on RO mounts
+        db_path = os.fspath(CWA_DB_PATH)
+        db_uri = f"file:{db_path}?mode=ro&immutable=1"
+        conn = sqlite3.connect(db_uri, uri=True)
         cur = conn.cursor()
         cur.execute("SELECT password FROM user WHERE name = ?", (username,))
         row = cur.fetchone()
