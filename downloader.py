@@ -8,12 +8,16 @@ from io import BytesIO
 from typing import Optional
 from urllib.parse import urlparse
 from tqdm import tqdm
-
+from typing import Callable
+from threading import Event
 from logger import setup_logger
 from config import PROXIES
-from env import MAX_RETRY, DEFAULT_SLEEP, USE_CF_BYPASS
+from env import MAX_RETRY, DEFAULT_SLEEP, USE_CF_BYPASS, USING_EXTERNAL_BYPASSER
 if USE_CF_BYPASS:
-    import cloudflare_bypasser
+    if USING_EXTERNAL_BYPASSER:
+        from cloudflare_bypasser_external import get_bypassed_page
+    else:
+        from cloudflare_bypasser import get_bypassed_page
 
 logger = setup_logger(__name__)
 
@@ -34,12 +38,7 @@ def html_get_page(url: str, retry: int = MAX_RETRY, use_bypasser: bool = False) 
         logger.debug(f"html_get_page: {url}, retry: {retry}, use_bypasser: {use_bypasser}")
         if use_bypasser and USE_CF_BYPASS:
             logger.info(f"GET Using Cloudflare Bypasser for: {url}")
-            response_html = cloudflare_bypasser.get(url)
-            logger.debug(f"Cloudflare Bypasser response length: {len(response_html)}")
-            if response_html.strip() != "":
-                return response_html
-            else:
-                raise requests.exceptions.RequestException("Failed to bypass Cloudflare")
+            return get_bypassed_page(url)
         else:
             logger.info(f"GET: {url}")
             response = requests.get(url, proxies=PROXIES)
@@ -71,7 +70,7 @@ def html_get_page(url: str, retry: int = MAX_RETRY, use_bypasser: bool = False) 
         time.sleep(sleep_time)
         return html_get_page(url, retry - 1, use_bypasser)
 
-def download_url(link: str, size: str = "") -> Optional[BytesIO]:
+def download_url(link: str, size: str = "", progress_callback: Optional[Callable[[float], None]] = None, cancel_flag: Optional[Event] = None) -> Optional[BytesIO]:
     """Download content from URL into a BytesIO buffer.
     
     Args:
@@ -99,6 +98,11 @@ def download_url(link: str, size: str = "") -> Optional[BytesIO]:
         for chunk in response.iter_content(chunk_size=1000):
             buffer.write(chunk)
             pbar.update(len(chunk))
+            if progress_callback is not None:
+                progress_callback(pbar.n * 100.0 / total_size)
+            if cancel_flag is not None and cancel_flag.is_set():
+                logger.info(f"Download cancelled: {link}")
+                return None
             
         pbar.close()
         if buffer.tell() * 0.1 < total_size * 0.9:
@@ -119,6 +123,8 @@ def get_absolute_url(base_url: str, url: str) -> str:
         url: Relative URL
     """
     if url.strip() == "":
+        return ""
+    if url.strip("#") == "":
         return ""
     if url.startswith("http"):
         return url
